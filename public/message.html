@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Socket.IO Chat Tester</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        height: 100vh;
+        display: flex;
+      }
+      #left {
+        width: 320px;
+        border-right: 1px solid #ddd;
+        padding: 12px;
+        box-sizing: border-box;
+        overflow: auto;
+      }
+      #right {
+        flex: 1;
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+      }
+      .conv {
+        padding: 10px;
+        border-radius: 6px;
+        margin-bottom: 8px;
+        cursor: pointer;
+        background: #f7f7f7;
+      }
+      .conv.active {
+        background: #e8f0ff;
+      }
+      .meta {
+        font-size: 12px;
+        color: #666;
+      }
+      #messages {
+        flex: 1;
+        overflow: auto;
+        padding: 10px;
+        border: 1px solid #eee;
+        border-radius: 6px;
+        background: #fafafa;
+      }
+      .msg {
+        margin-bottom: 8px;
+      }
+      .msg .who {
+        font-weight: 600;
+        margin-right: 8px;
+      }
+      .controls {
+        display: flex;
+        gap: 8px;
+        margin-top: 10px;
+      }
+      input[type='text'] {
+        padding: 8px;
+        flex: 1;
+        border-radius: 6px;
+        border: 1px solid #ccc;
+      }
+      button {
+        padding: 8px 12px;
+        border-radius: 6px;
+        border: 0;
+        background: #2b6cff;
+        color: white;
+        cursor: pointer;
+      }
+      small {
+        color: #999;
+      }
+      header {
+        margin-bottom: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="left">
+      <header>
+        <div>
+          <label><strong>Test User ID</strong></label
+          ><br />
+          <input
+            id="userIdInput"
+            type="text"
+            placeholder="paste userId (ObjectId)"
+          />
+          <button id="btnLogin">Register</button>
+          <div>
+            <small>Use a real user id from DB for accurate tests.</small>
+          </div>
+        </div>
+      </header>
+
+      <h4>Conversations</h4>
+      <div id="conversations">
+        <div><small>No conversations loaded.</small></div>
+      </div>
+      <hr />
+      <div>
+        <button id="btnRefresh">Refresh Conversations</button>
+        <button id="btnJoinAll">Join All Rooms</button>
+      </div>
+    </div>
+
+    <div id="right">
+      <div
+        style="
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        "
+      >
+        <h3 id="roomTitle">Open a conversation</h3>
+        <div id="status">
+          <small>Socket: <span id="socketStatus">disconnected</span></small>
+        </div>
+      </div>
+
+      <div id="messages">Select a conversation to load messages</div>
+
+      <div class="controls">
+        <input id="msgInput" type="text" placeholder="Type a message..." />
+        <button id="btnSend">Send</button>
+      </div>
+    </div>
+
+    <!-- Socket.IO client served by server at /socket.io/socket.io.js -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+      ;(function () {
+        // Basic config (server origin)
+        const API_BASE = window.location.origin // change if server at different origin
+
+        // DOM
+        const userIdInput = document.getElementById('userIdInput')
+        const btnLogin = document.getElementById('btnLogin')
+        const btnRefresh = document.getElementById('btnRefresh')
+        const btnJoinAll = document.getElementById('btnJoinAll')
+        const conversationsEl = document.getElementById('conversations')
+        const messagesEl = document.getElementById('messages')
+        const roomTitle = document.getElementById('roomTitle')
+        const socketStatusEl = document.getElementById('socketStatus')
+        const msgInput = document.getElementById('msgInput')
+        const btnSend = document.getElementById('btnSend')
+
+        let socket = null
+        let currentUserId = null
+        let conversations = [] // loaded conv objects
+        let currentConversationId = null
+        let messagesCache = {} // conversationId -> messages[]
+
+        // init socket
+        function createSocket() {
+          if (socket) {
+            socket.disconnect()
+          }
+          socket = io(API_BASE, { transports: ['websocket', 'polling'] })
+
+          socket.on('connect', () => {
+            socketStatusEl.textContent = 'connected (' + socket.id + ')'
+            if (currentUserId) {
+              socket.emit('register', currentUserId)
+              console.log('registered personal room:', currentUserId)
+            }
+          })
+
+          socket.on(
+            'disconnect',
+            () => (socketStatusEl.textContent = 'disconnected')
+          )
+
+          // message to currently open conversation
+          socket.on('receiveMessage', (msg) => {
+            console.log('receiveMessage', msg)
+            // if open, append; else ignore (inbox preview handled by conversationUpdated)
+            if (msg.conversationId === currentConversationId) {
+              appendMessage(msg)
+            }
+          })
+
+          // inbox-level update for previews & ordering
+          socket.on('conversationUpdated', (update) => {
+            console.log('conversationUpdated', update)
+            // find conv and update lastMessage + updatedAt
+            const conv = conversations.find(
+              (c) => c._id === update.conversationId
+            )
+            if (conv) {
+              conv.lastMessage = update.lastMessage
+              conv.updatedAt = update.updatedAt
+              renderConversations()
+            } else {
+              // optional: new conversation created; let's fetch all
+              fetchConversations()
+            }
+          })
+        }
+
+        // Fetch conversations list - initial snapshot
+        async function fetchConversations() {
+          if (!currentUserId) return alert('Register first (provide userId).')
+          try {
+            const res = await fetch(
+              API_BASE + `/api/v1/conversation/${currentUserId}`,
+              {
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include', // keep if you use auth cookies
+              }
+            )
+            console.log(currentUserId)
+            console.log(res)
+
+            if (!res.ok)
+              throw new Error('Failed to load conversations: ' + res.status)
+            conversations = await res.json()
+            renderConversations()
+          } catch (err) {
+            console.error(err)
+            conversationsEl.innerHTML =
+              '<div><small>Error loading conversations. Check server console and auth.</small></div>'
+          }
+        }
+
+        function renderConversations() {
+          conversationsEl.innerHTML = ''
+          if (!conversations || conversations.length === 0) {
+            conversationsEl.innerHTML =
+              '<div><small>No conversations</small></div>'
+            return
+          }
+          // sort by updatedAt descending
+          conversations.sort(
+            (a, b) => new Date(b.updatedAt) - new Date(a.updatedAt)
+          )
+          conversations.forEach((conv) => {
+            const div = document.createElement('div')
+            div.className =
+              'conv' + (conv._id === currentConversationId ? ' active' : '')
+            div.dataset.id = conv._id
+            const title =
+              conv.participants && conv.participants.length
+                ? conv.participants
+                    .filter((p) => p._id !== currentUserId)
+                    .map((p) => p.name || p.email || p._id)
+                    .join(', ')
+                : 'Conversation ' + conv._id
+            div.innerHTML = `<div><strong>${title}</strong></div>
+                           <div class="meta">${
+                             conv.lastMessage
+                               ? conv.lastMessage
+                               : '<small>No messages yet</small>'
+                           }</div>
+                           <div class="meta">Updated: ${new Date(
+                             conv.updatedAt
+                           ).toLocaleString()}</div>`
+            div.onclick = () => openConversation(conv._id)
+            conversationsEl.appendChild(div)
+          })
+        }
+
+        // Join all conversation rooms on socket so server can push room events
+        function joinAllRooms() {
+          if (!socket) return alert('Socket not connected')
+          if (!conversations || conversations.length === 0)
+            return alert('No conversations to join')
+          conversations.forEach((conv) => {
+            socket.emit('joinRoom', conv._id)
+          })
+          alert('Joined ' + conversations.length + ' rooms')
+        }
+
+        // load messages for conversation (REST) and join room
+        async function openConversation(conversationId) {
+          currentConversationId = conversationId
+          roomTitle.textContent = 'Conversation: ' + conversationId
+          // highlight active
+          renderConversations()
+
+          // join the room for live message delivery (so server will broadcast to room)
+          if (socket) socket.emit('joinRoom', conversationId)
+
+          // load messages from REST
+          messagesEl.innerHTML = '<div><small>Loading messages...</small></div>'
+          try {
+            const res = await fetch(
+              API_BASE + '/api/v1/messages/' + conversationId
+            )
+            if (!res.ok) throw new Error('Failed to load messages')
+            const msgs = await res.json()
+            messagesCache[conversationId] = msgs
+            renderMessages(msgs)
+          } catch (err) {
+            console.error(err)
+            messagesEl.innerHTML =
+              '<div><small>Error loading messages</small></div>'
+          }
+        }
+
+        function renderMessages(msgs) {
+          messagesEl.innerHTML = ''
+          if (!msgs || msgs.length === 0) {
+            messagesEl.innerHTML = '<div><small>No messages yet</small></div>'
+            return
+          }
+          msgs.forEach((m) => appendMessage(m))
+          // scroll to bottom
+          messagesEl.scrollTop = messagesEl.scrollHeight
+        }
+
+        function appendMessage(msg) {
+          const d = document.createElement('div')
+          d.className = 'msg'
+          const who =
+            msg.sender && (msg.sender.name || msg.sender.email)
+              ? msg.sender.name || msg.sender.email
+              : msg.sender || 'someone'
+          const when = new Date(
+            msg.createdAt || msg.updatedAt || Date.now()
+          ).toLocaleTimeString()
+          d.innerHTML = `<span class="who">${who}</span><span class="meta">${when}</span><div>${escapeHtml(
+            msg.text
+          )}</div>`
+          messagesEl.appendChild(d)
+          messagesEl.scrollTop = messagesEl.scrollHeight
+        }
+
+        // send a message via socket
+        function sendMessage() {
+          const text = msgInput.value.trim()
+          if (!text) return
+          if (!currentConversationId) return alert('Open a conversation first')
+          if (!socket) return alert('Socket not connected')
+
+          const payload = {
+            conversationId: currentConversationId,
+            sender: currentUserId, // using userId as sender; server can map to user profile
+            text,
+          }
+
+          socket.emit('sendMessage', payload)
+          // optimistic UI: append local message (server will also emit)
+          appendMessage({ ...payload, createdAt: new Date().toISOString() })
+          msgInput.value = ''
+        }
+
+        // helpers
+        function escapeHtml(s) {
+          return s.replace(/[&<>"']/g, function (m) {
+            return {
+              '&': '&amp;',
+              '<': '&lt;',
+              '>': '&gt;',
+              '"': '&quot;',
+              "'": '&#39;',
+            }[m]
+          })
+        }
+
+        // Event bindings
+        btnLogin.onclick = function () {
+          const uid = userIdInput.value.trim()
+          if (!uid) return alert('Enter user id (ObjectId) to register')
+          currentUserId = uid
+          createSocket()
+          // small delay to allow socket connect/registration
+          setTimeout(() => {
+            // fetch conversations after register
+            fetchConversations()
+          }, 400)
+        }
+
+        btnRefresh.onclick = () => fetchConversations()
+        btnJoinAll.onclick = () => joinAllRooms()
+        btnSend.onclick = sendMessage
+        msgInput.addEventListener('keypress', (e) => {
+          if (e.key === 'Enter') sendMessage()
+        })
+
+        // On load: create socket but require register to join personal room
+        createSocket()
+
+        // Developer note: If your API requires auth headers or cookies, adjust the fetch calls.
+      })()
+    </script>
+  </body>
+</html>

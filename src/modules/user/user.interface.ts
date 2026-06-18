@@ -1,5 +1,5 @@
-import { Model } from "mongoose";
-import { USER_ROLE } from "./user.constant";
+import { Model } from 'mongoose';
+import { USER_ROLE } from './user.constant';
 
 export interface IUser {
   _id: string;
@@ -19,6 +19,8 @@ export interface IUser {
   };
   isVerified: boolean;
   otp?: string | null;
+  isSuspend: boolean;
+  isBlocked: boolean;
   otpExpires?: Date | null;
   resetPasswordOtp?: string | null;
   resetPasswordOtpExpires?: Date | null;

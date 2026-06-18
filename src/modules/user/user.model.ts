@@ -51,6 +51,14 @@ const userSchema = new Schema<IUser>(
         type: String,
       },
     },
+    isSuspend: {
+      type: Boolean,
+      default: false,
+    },
+    isBlocked: {
+      type: Boolean,
+      default: false,
+    },
     isVerified: {
       type: Boolean,
       default: false,
@@ -68,7 +76,6 @@ const userSchema = new Schema<IUser>(
 
 userSchema.pre('save', async function (next) {
   this.password = await bcrypt.hash(this.password, Number(config.bcryptSaltRounds));
-
   next();
 });
 

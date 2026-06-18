@@ -1,25 +1,30 @@
-import { StatusCodes } from "http-status-codes";
-import catchAsync from "../../utils/catchAsync";
-import sendResponse from "../../utils/sendResponse";
-import config from "../../config";
-import authService from "./auth.service";
+import { StatusCodes } from 'http-status-codes';
+import catchAsync from '../../utils/catchAsync';
+import sendResponse from '../../utils/sendResponse';
+import config from '../../config';
+import authService from './auth.service';
 
 const login = catchAsync(async (req, res) => {
   const result = await authService.login(req.body);
-  const { refreshToken } = result;
 
-  res.cookie("refreshToken", refreshToken, {
+  const { token, user } = result;
+  const { accessToken, refreshToken } = token;
+
+  res.cookie('refreshToken', refreshToken, {
     httpOnly: true,
-    secure: config.NODE_ENV === "production",
-    sameSite: config.NODE_ENV === "production" ? "none" : "lax",
+    secure: config.NODE_ENV === 'production',
+    sameSite: config.NODE_ENV === 'production' ? 'none' : 'lax',
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });
 
   sendResponse(res, {
     statusCode: StatusCodes.OK,
     success: true,
-    message: "You have logged in successfully.",
-    data: result,
+    message: 'You have logged in successfully.',
+    data: {
+      accessToken,
+      user,
+    },
   });
 });
 
@@ -30,7 +35,7 @@ const refreshToken = catchAsync(async (req, res) => {
   sendResponse(res, {
     statusCode: StatusCodes.OK,
     success: true,
-    message: "Access token refreshed successfully",
+    message: 'Access token refreshed successfully',
     data: result,
   });
 });
@@ -42,7 +47,7 @@ const forgotPassword = catchAsync(async (req, res) => {
   sendResponse(res, {
     statusCode: StatusCodes.OK,
     success: true,
-    message: "OTP sent to your email",
+    message: 'OTP sent to your email',
     data: result,
   });
 });
@@ -54,7 +59,7 @@ const resendForgotOtpCode = catchAsync(async (req, res) => {
   sendResponse(res, {
     statusCode: StatusCodes.OK,
     success: true,
-    message: "OTP resent successfully",
+    message: 'OTP resent successfully',
     // data: result,
   });
 });
@@ -67,7 +72,7 @@ const verifyOtp = catchAsync(async (req, res) => {
   sendResponse(res, {
     statusCode: StatusCodes.OK,
     success: true,
-    message: "OTP verified successfully",
+    message: 'OTP verified successfully',
     data: result,
   });
 });
@@ -79,7 +84,7 @@ const resetPassword = catchAsync(async (req, res) => {
   sendResponse(res, {
     statusCode: StatusCodes.OK,
     success: true,
-    message: "Password reset successfully",
+    message: 'Password reset successfully',
     data: result,
   });
 });
@@ -91,7 +96,7 @@ const changePassword = catchAsync(async (req, res) => {
   sendResponse(res, {
     statusCode: StatusCodes.OK,
     success: true,
-    message: "Password changed successfully",
+    message: 'Password changed successfully',
     data: result,
   });
 });

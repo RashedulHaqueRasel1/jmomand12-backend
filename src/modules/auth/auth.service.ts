@@ -1,64 +1,31 @@
-import bcrypt from "bcrypt";
-import { StatusCodes } from "http-status-codes";
-import config from "../../config";
-import AppError from "../../errors/AppError";
-import { companyName } from "../../lib/globalType";
-import sendEmail from "../../utils/sendEmail";
-import { createToken, verifyToken } from "../../utils/tokenGenerate";
-import verificationCodeTemplate from "../../utils/verificationCodeTemplate";
-import { User } from "../user/user.model";
+import bcrypt from 'bcrypt';
+import { StatusCodes } from 'http-status-codes';
+import config from '../../config';
+import AppError from '../../errors/AppError';
+import { companyName } from '../../lib/globalType';
+import sendEmail from '../../utils/sendEmail';
+import { createToken, verifyToken } from '../../utils/tokenGenerate';
+import verificationCodeTemplate from '../../utils/verificationCodeTemplate';
+import { User } from '../user/user.model';
+import { buildUserResponse, generateTokens, validateUserStatus } from '../../lib/helper';
 
 const login = async (payload: { email: string; password: string }) => {
   const { email, password } = payload;
 
   const user = await User.isUserExistByEmail(email);
   if (!user)
-    throw new AppError(
-      "No account found with the provided credentials.",
-      StatusCodes.NOT_FOUND,
-    );
+    throw new AppError('No account found with the provided credentials.', StatusCodes.NOT_FOUND);
 
-  if (user.isVerified === false)
-    throw new AppError("Please verify your email", StatusCodes.UNAUTHORIZED);
+  validateUserStatus(user);
 
   const isPasswordValid = await User.isPasswordMatch(password, user.password);
-  if (!isPasswordValid)
-    throw new AppError("Invalid password", StatusCodes.UNAUTHORIZED);
+  if (!isPasswordValid) throw new AppError('Invalid password', StatusCodes.UNAUTHORIZED);
 
-  const tokenPayload = {
-    id: user._id,
-    email: user.email,
-    role: user.role,
-  };
-
-  const accessToken = createToken(
-    tokenPayload,
-    config.JWT_SECRET as string,
-    config.JWT_EXPIRES_IN as string,
-  );
-
-  const refreshToken = createToken(
-    tokenPayload,
-    config.refreshTokenSecret as string,
-    config.jwtRefreshTokenExpiresIn as string,
-  );
+  const token = generateTokens(user);
 
   return {
-    accessToken,
-    refreshToken,
-    user: {
-      id: user._id,
-      email: user.email,
-      role: user.role,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      image: user.image,
-      phone: user.phone,
-      street: user.street,
-      location: user.location,
-      postalCode: user.postalCode,
-      dateOfBirth: user.dateOfBirth,
-    },
+    token,
+    user: buildUserResponse(user),
   };
 };
 
@@ -69,17 +36,17 @@ const refreshToken = async (token: string) => {
     decodedToken = verifyToken(token, config.refreshTokenSecret as string);
 
     if (!decodedToken) {
-      throw new AppError("Invalid token", StatusCodes.UNAUTHORIZED);
+      throw new AppError('Invalid token', StatusCodes.UNAUTHORIZED);
     }
   } catch (error) {
-    throw new AppError("You are not authorized", StatusCodes.UNAUTHORIZED);
+    throw new AppError('You are not authorized', StatusCodes.UNAUTHORIZED);
   }
 
   const email = decodedToken.email as string;
   const userData = await User.findOne({ email });
 
   if (!userData) {
-    throw new Error("No account found with the provided credentials.");
+    throw new Error('No account found with the provided credentials.');
   }
 
   const JwtPayload = {
@@ -98,14 +65,11 @@ const refreshToken = async (token: string) => {
 };
 
 const forgotPassword = async (email: string) => {
-  if (!email) throw new Error("Email is required");
+  if (!email) throw new Error('Email is required');
 
   const isExistingUser = await User.isUserExistByEmail(email);
   if (!isExistingUser)
-    throw new AppError(
-      "No account found with the provided credentials.",
-      StatusCodes.NOT_FOUND,
-    );
+    throw new AppError('No account found with the provided credentials.', StatusCodes.NOT_FOUND);
 
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
   const hashedOtp = await bcrypt.hash(otp, 10);
@@ -122,7 +86,7 @@ const forgotPassword = async (email: string) => {
 
   await sendEmail({
     to: isExistingUser.email,
-    subject: "Reset your password",
+    subject: 'Reset your password',
     html: verificationCodeTemplate(otp),
   });
 
@@ -144,10 +108,7 @@ const forgotPassword = async (email: string) => {
 const resendForgotOtpCode = async (email: string) => {
   const existingUser = await User.isUserExistByEmail(email);
   if (!existingUser)
-    throw new AppError(
-      "No account found with the provided credentials.",
-      StatusCodes.NOT_FOUND,
-    );
+    throw new AppError('No account found with the provided credentials.', StatusCodes.NOT_FOUND);
 
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
   const hashedOtp = await bcrypt.hash(otp, 10);
@@ -160,7 +121,7 @@ const resendForgotOtpCode = async (email: string) => {
       resetPasswordOtpExpires: otpExpires,
     },
     { new: true },
-  ).select("username email role");
+  ).select('username email role');
 
   await sendEmail({
     to: existingUser.email,
@@ -172,44 +133,29 @@ const resendForgotOtpCode = async (email: string) => {
 
 const verifyOtp = async (email: string, otp: string) => {
   if (!otp) {
-    throw new AppError("OTP is required", StatusCodes.BAD_REQUEST);
+    throw new AppError('OTP is required', StatusCodes.BAD_REQUEST);
   }
 
   const isExistingUser = await User.isUserExistByEmail(email);
   if (!isExistingUser)
-    throw new AppError(
-      "No account found with the provided credentials.",
-      StatusCodes.NOT_FOUND,
-    );
+    throw new AppError('No account found with the provided credentials.', StatusCodes.NOT_FOUND);
 
-  if (
-    !isExistingUser.resetPasswordOtp ||
-    !isExistingUser.resetPasswordOtpExpires
-  ) {
-    throw new AppError(
-      "Password reset OTP not requested or has expired",
-      StatusCodes.BAD_REQUEST,
-    );
+  if (!isExistingUser.resetPasswordOtp || !isExistingUser.resetPasswordOtpExpires) {
+    throw new AppError('Password reset OTP not requested or has expired', StatusCodes.BAD_REQUEST);
   }
 
   if (isExistingUser.resetPasswordOtpExpires < new Date()) {
-    throw new AppError(
-      "Password reset OTP has expired",
-      StatusCodes.BAD_REQUEST,
-    );
+    throw new AppError('Password reset OTP has expired', StatusCodes.BAD_REQUEST);
   }
 
-  const isOtpMatched = await bcrypt.compare(
-    otp.toString(),
-    isExistingUser.resetPasswordOtp,
-  );
-  if (!isOtpMatched) throw new Error("Invalid OTP");
+  const isOtpMatched = await bcrypt.compare(otp.toString(), isExistingUser.resetPasswordOtp);
+  if (!isOtpMatched) throw new Error('Invalid OTP');
 
   await User.findByIdAndUpdate(
     isExistingUser._id,
     {
-      resetPasswordOtp: "",
-      resetPasswordOtpExpires: "",
+      resetPasswordOtp: '',
+      resetPasswordOtpExpires: '',
     },
     { new: true },
   );
@@ -229,35 +175,22 @@ const verifyOtp = async (email: string, otp: string) => {
   return { accessToken };
 };
 
-const resetPassword = async (
-  payload: { newPassword: string },
-  email: string,
-) => {
-  if (!payload.newPassword)
-    throw new AppError("Password is required", StatusCodes.BAD_REQUEST);
+const resetPassword = async (payload: { newPassword: string }, email: string) => {
+  if (!payload.newPassword) throw new AppError('Password is required', StatusCodes.BAD_REQUEST);
 
   const isExistingUser = await User.isUserExistByEmail(email);
   if (!isExistingUser)
-    throw new AppError(
-      "No account found with the provided credentials.",
-      StatusCodes.NOT_FOUND,
-    );
+    throw new AppError('No account found with the provided credentials.', StatusCodes.NOT_FOUND);
 
-  const isSamePassword = await bcrypt.compare(
-    payload.newPassword,
-    isExistingUser.password,
-  );
+  const isSamePassword = await bcrypt.compare(payload.newPassword, isExistingUser.password);
   if (isSamePassword) {
     throw new AppError(
-      "New password cannot be the same as the current password",
+      'New password cannot be the same as the current password',
       StatusCodes.BAD_REQUEST,
     );
   }
 
-  const hashedPassword = await bcrypt.hash(
-    payload.newPassword,
-    Number(config.bcryptSaltRounds),
-  );
+  const hashedPassword = await bcrypt.hash(payload.newPassword, Number(config.bcryptSaltRounds));
 
   const result = await User.findOneAndUpdate(
     { email },
@@ -267,9 +200,7 @@ const resetPassword = async (
       otpExpires: undefined,
     },
     { new: true },
-  ).select(
-    "-password -otp -otpExpires -resetPasswordOtp -resetPasswordOtpExpires",
-  );
+  ).select('-password -otp -otpExpires -resetPasswordOtp -resetPasswordOtpExpires');
 
   return result;
 };
@@ -283,34 +214,19 @@ const changePassword = async (
 ) => {
   const { currentPassword, newPassword } = payload;
   if (!currentPassword || !newPassword) {
-    throw new AppError(
-      "Current and new passwords are required",
-      StatusCodes.BAD_REQUEST,
-    );
+    throw new AppError('Current and new passwords are required', StatusCodes.BAD_REQUEST);
   }
 
   const isExistingUser = await User.isUserExistByEmail(email);
   if (!isExistingUser)
-    throw new AppError(
-      "No account found with the provided credentials.",
-      StatusCodes.NOT_FOUND,
-    );
+    throw new AppError('No account found with the provided credentials.', StatusCodes.NOT_FOUND);
 
-  const isPasswordMatched = await User.isPasswordMatch(
-    currentPassword,
-    isExistingUser.password,
-  );
+  const isPasswordMatched = await User.isPasswordMatch(currentPassword, isExistingUser.password);
 
   if (!isPasswordMatched)
-    throw new AppError(
-      "Current password is incorrect",
-      StatusCodes.BAD_REQUEST,
-    );
+    throw new AppError('Current password is incorrect', StatusCodes.BAD_REQUEST);
 
-  const hashedPassword = await bcrypt.hash(
-    newPassword,
-    Number(config.bcryptSaltRounds),
-  );
+  const hashedPassword = await bcrypt.hash(newPassword, Number(config.bcryptSaltRounds));
 
   const result = await User.findOneAndUpdate(
     { email },
@@ -318,9 +234,7 @@ const changePassword = async (
       password: hashedPassword,
     },
     { new: true },
-  ).select(
-    "-password -otp -otpExpires -resetPasswordOtp -resetPasswordOtpExpires",
-  );
+  ).select('-password -otp -otpExpires -resetPasswordOtp -resetPasswordOtpExpires');
 
   return result;
 };

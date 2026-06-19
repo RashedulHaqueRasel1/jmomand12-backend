@@ -119,7 +119,7 @@ const resendOtpCode = async (email: string) => {
 };
 
 const getAllUsers = async () => {
-  const result = await User.find().select('username firstName lastName email role');
+  const result = await User.find().select('username firstName lastName email role image');
   return result;
 };
 
@@ -170,6 +170,37 @@ const updateUserProfile = async (payload: any, email: string, file: any) => {
   return result;
 };
 
+const getUserDetails = async (userId: string) => {
+  const result = await User.findById(userId).select(
+    '-password -otp -otpExpires -resetPasswordOtp -resetPasswordOtpExpires',
+  );
+  if (!result) {
+    throw new AppError('User not found', StatusCodes.NOT_FOUND);
+  }
+  return result;
+};
+
+const suspendUser = async (id: string) => {
+  const user = await User.findById(id);
+  if (!user) {
+    throw new AppError('Account not found', StatusCodes.NOT_FOUND);
+  }
+
+  // Step 2: Admin cannot be suspended
+  if (user.role === 'admin') {
+    throw new AppError('Admin account cannot be suspended', StatusCodes.BAD_REQUEST);
+  }
+
+  // Step 4: Toggle suspension
+  const updatedUser = await User.findByIdAndUpdate(
+    id,
+    { isSuspend: !user.isSuspend },
+    { new: true },
+  );
+
+  return updatedUser;
+};
+
 const userService = {
   registerUser,
   verifyEmail,
@@ -178,6 +209,8 @@ const userService = {
   getMyProfile,
   updateUserProfile,
   getAdminId,
+  getUserDetails,
+  suspendUser,
 };
 
 export default userService;

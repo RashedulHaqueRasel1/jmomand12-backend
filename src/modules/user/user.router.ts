@@ -15,9 +15,7 @@ router.post(
 );
 
 router.post('/verify-email', auth(USER_ROLE.ADMIN, USER_ROLE.USER), userController.verifyEmail);
-
 router.post('/resend-otp', auth(USER_ROLE.ADMIN, USER_ROLE.USER), userController.resendOtpCode);
-
 router.get('/all-users', auth(USER_ROLE.ADMIN), userController.getAllUsers);
 router.get('/my-profile', auth(USER_ROLE.ADMIN, USER_ROLE.USER), userController.getMyProfile);
 
@@ -29,6 +27,8 @@ router.put(
 );
 
 router.get('/admin_id', auth(USER_ROLE.ADMIN, USER_ROLE.USER), userController.getAdminId);
+router.get('/:userId', auth(USER_ROLE.ADMIN), userController.getUserDetails);
+router.get('/suspend/:id', auth(USER_ROLE.ADMIN), userController.suspendUser);
 
 const userRouter = router;
 export default userRouter;

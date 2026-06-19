@@ -54,17 +54,8 @@ const refreshToken = async (token: string) => {
     throw new Error('No account found with the provided credentials.');
   }
 
-  const JwtPayload = {
-    userId: userData._id,
-    role: userData.role,
-    email: userData.email,
-  };
-
-  const accessToken = createToken(
-    JwtPayload,
-    config.JWT_SECRET as string,
-    config.JWT_EXPIRES_IN as string,
-  );
+  const tokenRes = generateTokens(userData);
+  const { accessToken } = tokenRes;
 
   return { accessToken };
 };

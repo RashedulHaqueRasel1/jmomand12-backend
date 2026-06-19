@@ -98,14 +98,40 @@ const updateUserProfile = catchAsync(async (req, res) => {
   });
 });
 
+const getUserDetails = catchAsync(async (req, res) => {
+  const { userId } = req.params;
+  const result = await userService.getUserDetails(userId as string);
+
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: 'User details retrieved successfully.',
+    data: result,
+  });
+});
+
+const suspendUser = catchAsync(async (req, res) => {
+  const { id } = req.params;
+  const result = await userService.suspendUser(id as string);
+
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: 'User suspended successfully',
+    data: result,
+  });
+});
+
 const userController = {
   registerUser,
   verifyEmail,
   resendOtpCode,
   getAllUsers,
   getMyProfile,
+  getUserDetails,
   updateUserProfile,
   getAdminId,
+  suspendUser,
 };
 
 export default userController;

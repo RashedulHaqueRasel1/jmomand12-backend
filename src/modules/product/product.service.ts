@@ -42,8 +42,108 @@ const createProduct = async (
   return result;
 };
 
+const getAllProducts = async (query: Record<string, unknown>) => {
+  const {
+    searchTerm,
+    category,
+    condition,
+    inventoryStatus,
+    sortBy = 'createdAt',
+    sortOrder = 'desc',
+    page = 1,
+    limit = 10,
+    fields,
+  } = query;
+
+  const filter: any = {};
+
+  // Search
+  if (searchTerm) {
+    filter.$or = [
+      {
+        title: {
+          $regex: searchTerm,
+          $options: 'i',
+        },
+      },
+      {
+        description: {
+          $regex: searchTerm,
+          $options: 'i',
+        },
+      },
+      {
+        category: {
+          $regex: searchTerm,
+          $options: 'i',
+        },
+      },
+    ];
+  }
+
+  // Category Filter
+  if (category) {
+    filter.category = category;
+  }
+
+  // Condition Filter
+  if (condition) {
+    filter.condition = condition;
+  }
+
+  // Inventory Filter
+  if (inventoryStatus) {
+    filter.inventoryStatus = inventoryStatus;
+  }
+
+  // Pagination
+  const pageNumber = Number(page);
+  const limitNumber = Number(limit);
+
+  const skip = (pageNumber - 1) * limitNumber;
+
+  // Sorting
+
+  const sort: Record<string, 1 | -1> = {
+    [sortBy as string]: sortOrder === 'asc' ? 1 : -1,
+  };
+
+  // Field Selection
+
+  let selectFields = '';
+
+  if (fields) {
+    selectFields = (fields as string).split(',').join(' ');
+  }
+
+  const products = await Product.find(filter)
+    .sort(sort)
+    .skip(skip)
+    .limit(limitNumber)
+    .select(selectFields);
+
+  const total = await Product.countDocuments(filter);
+
+  return {
+    meta: {
+      page: pageNumber,
+      limit: limitNumber,
+      total,
+      totalPage: Math.ceil(total / limitNumber),
+    },
+    data: products,
+  };
+};
+
+const getProductDetails = async (id: string) => {
+  const result = await Product.findById(id);
+  return result;
+};
+
 const productService = {
   createProduct,
+  getAllProducts,
+  getProductDetails,
 };
 
 export default productService;

@@ -20,8 +20,34 @@ const creteNewProduct = catchAsync(async (req, res) => {
   });
 });
 
+const getAllProducts = catchAsync(async (req, res) => {
+  const result = await productService.getAllProducts(req.query);
+
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: 'Products fetched successfully',
+    meta: result.meta,
+    data: result.data,
+  });
+});
+
+const getProductDetails = catchAsync(async (req, res) => {
+  const { id } = req.params;
+  const result = await productService.getProductDetails(id as string);
+
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: 'Product details fetched successfully',
+    data: result,
+  });
+});
+
 const productController = {
   creteNewProduct,
+  getAllProducts,
+  getProductDetails,
 };
 
 export default productController;

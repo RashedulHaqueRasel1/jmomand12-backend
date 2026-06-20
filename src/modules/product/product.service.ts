@@ -2,7 +2,7 @@ import { StatusCodes } from 'http-status-codes';
 import AppError from '../../errors/AppError';
 import { User } from '../user/user.model';
 import { IProduct } from './product.interface';
-import { uploadToCloudinary } from '../../utils/cloudinary';
+import { deleteFromCloudinary, uploadToCloudinary } from '../../utils/cloudinary';
 import Product from './product.model';
 
 const createProduct = async (
@@ -140,10 +140,60 @@ const getProductDetails = async (id: string) => {
   return result;
 };
 
+const updateProduct = async (
+  id: string,
+  payload: Partial<IProduct>,
+  email: string,
+  files?: Express.Multer.File[],
+) => {
+  const user = await User.isUserExistByEmail(email);
+  if (!user) {
+    throw new AppError('User not found', StatusCodes.FORBIDDEN);
+  }
+
+  const product = await Product.findById(id);
+  if (!product) {
+    throw new AppError('Product not found', StatusCodes.NOT_FOUND);
+  }
+
+  // Upload new images
+  if (files?.length) {
+    const uploadedImages = await Promise.all(
+      files.map(async (file) => {
+        const image = await uploadToCloudinary(file.path, 'products');
+
+        return {
+          public_id: image.public_id,
+          url: image.secure_url,
+        };
+      }),
+    );
+
+    // delete old images
+    if (product.images?.length) {
+      await Promise.all(product.images.map((image) => deleteFromCloudinary(image.public_id)));
+    }
+
+    payload.images = uploadedImages;
+  }
+
+  // prevent unwanted update
+  // delete payload.totalReview;
+  // delete payload.averageReview;
+
+  const result = await Product.findByIdAndUpdate(id, payload, {
+    new: true,
+    runValidators: true,
+  });
+
+  return result;
+};
+
 const productService = {
   createProduct,
   getAllProducts,
   getProductDetails,
+  updateProduct,
 };
 
 export default productService;

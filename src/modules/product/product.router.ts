@@ -15,6 +15,12 @@ router.post(
 
 router.get('/all', productController.getAllProducts);
 router.get('/:id', productController.getProductDetails);
+router.put(
+  '/update/:id',
+  upload.array('images', 5),
+  auth(USER_ROLE.ADMIN),
+  productController.updateProduct,
+);
 
 const productRouter = router;
 export default productRouter;

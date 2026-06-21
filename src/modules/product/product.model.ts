@@ -33,10 +33,8 @@ const productSchema = new Schema<IProduct>(
       trim: true,
     },
 
-    category: {
-      type: String,
-      required: true,
-      index: true,
+    categoryId: {
+      type: Schema.ObjectId,
     },
 
     condition: {

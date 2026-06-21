@@ -1,9 +1,11 @@
+import { Types } from 'mongoose';
+
 export type ProductCondition = 'new' | 'open_box' | 'like_new' | 'used' | 'damaged' | 'for_parts';
 
 export interface IProduct {
   title: string;
   description: string;
-  category: string;
+  categoryId: Types.ObjectId;
   condition: ProductCondition;
   inventoryStatus: 'available' | 'unavailable';
   images: {

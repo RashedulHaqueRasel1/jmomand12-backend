@@ -10,6 +10,9 @@ export type AuctionStatus =
   | 'unsold'
   | 'cancelled';
 
+
+  
+
 export interface IAuction {
   product: Types.ObjectId;
   title: string;

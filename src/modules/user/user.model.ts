@@ -59,6 +59,16 @@ const userSchema = new Schema<IUser>(
       type: Boolean,
       default: false,
     },
+    stripeCustomerId: {
+      type: String,
+    },
+    defaultPaymentMethodId: {
+      type: String,
+    },
+    hasDefaultPaymentMethod: {
+      type: Boolean,
+      default: false,
+    },
     isVerified: {
       type: Boolean,
       default: false,

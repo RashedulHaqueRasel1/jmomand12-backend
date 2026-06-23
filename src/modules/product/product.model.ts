@@ -21,6 +21,14 @@ const imageSchema = new Schema(
 
 const productSchema = new Schema<IProduct>(
   {
+    inventoryId: {
+      type: String,
+      required: true,
+      unique: true,
+      trim: true,
+      index: true,
+    },
+
     title: {
       type: String,
       required: true,
@@ -45,9 +53,33 @@ const productSchema = new Schema<IProduct>(
       enum: ['new', 'open_box', 'like_new', 'used', 'damaged', 'for_parts'],
     },
 
+    reservePrice: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+
+    retailPrice: {
+      type: Number,
+      min: 0,
+    },
+
     inventoryStatus: {
       type: String,
-      enum: ['available', 'unavailable'],
+      enum: [
+        'available',
+        'auction_active',
+        'auction_ended',
+        'winner_assigned',
+        'payment_pending',
+        'payment_completed',
+        'ready_for_pickup',
+        'pickup_scheduled',
+        'picked_up',
+        'completed',
+        'unsold',
+        'unavailable',
+      ],
       default: 'available',
     },
 

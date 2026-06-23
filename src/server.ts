@@ -4,6 +4,7 @@ import { Server } from "socket.io";
 import app from "./app";
 import config from "./config";
 import logger from "./logger";
+import auctionService from "./modules/auction/auction.service";
 import { initNotificationSocket } from "./socket/notification.service";
 
 async function main() {
@@ -26,11 +27,19 @@ async function main() {
 
     initNotificationSocket(io);
 
+    setInterval(async () => {
+      try {
+        await auctionService.closeDueAuctions();
+      } catch (error) {
+        logger.error({ error }, "Auction scheduler failed");
+      }
+    }, 60 * 1000);
+
     httpServer.listen(config.port, () => {
       logger.info(`Server running on port ${config.port}`);
     });
   } catch (error: any) {
-    logger.error("Server failed to start:", error);
+    logger.error({ error }, "Server failed to start");
   }
 }
 

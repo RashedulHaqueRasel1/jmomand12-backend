@@ -13,6 +13,7 @@ type TResponse<T> = {
   message?: string;
   data?: T;
   meta?: TMeta;
+  links?: Record<string, string>;
 };
 
 const sendResponse = <T>(res: Response, data: TResponse<T>) => {
@@ -22,6 +23,7 @@ const sendResponse = <T>(res: Response, data: TResponse<T>) => {
     statusCode: data.statusCode,
     data: data.data,
     meta: data?.meta,
+    _links: data?.links,
   });
 };
 

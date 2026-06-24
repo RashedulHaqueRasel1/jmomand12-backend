@@ -5,7 +5,8 @@ import auth from "../../middleware/auth";
 const router = Router();
 
 router.get("/", auth("admin"), getAllNotifications);
-router.patch("/read/all", markAllAsRead);
+router.patch("/read-all", auth("admin"), markAllAsRead);
+router.patch("/read/all", auth("admin"), markAllAsRead);
 
 const notificationRouter = router;
 export default notificationRouter;

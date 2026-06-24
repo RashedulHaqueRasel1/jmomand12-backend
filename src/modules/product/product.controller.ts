@@ -44,6 +44,17 @@ const getProductDetails = catchAsync(async (req, res) => {
   });
 });
 
+const getInventoryMonitoring = catchAsync(async (req, res) => {
+  const result = await productService.getInventoryMonitoring(req.query);
+
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: 'Inventory monitoring fetched successfully',
+    data: result,
+  });
+});
+
 const updateProduct = catchAsync(async (req, res) => {
   const { email } = req.user;
   const { id } = req.params;
@@ -59,11 +70,31 @@ const updateProduct = catchAsync(async (req, res) => {
   });
 });
 
+const deleteProduct = catchAsync(async (req, res) => {
+  const { email } = req.user;
+  const { id } = req.params;
+
+  const result = await productService.deleteProduct(id as string, email);
+
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: 'Product deleted successfully',
+    data: result,
+    links: {
+      products: '/api/v1/products',
+      inventoryMonitoring: '/api/v1/products/inventory-monitoring',
+    },
+  });
+});
+
 const productController = {
   creteNewProduct,
   getAllProducts,
   getProductDetails,
+  getInventoryMonitoring,
   updateProduct,
+  deleteProduct,
 };
 
 export default productController;

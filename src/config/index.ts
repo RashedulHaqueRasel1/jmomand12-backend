@@ -29,6 +29,16 @@ export default {
     api_secret: process.env.CLOUDINARY_API_SECRET,
   },
 
+  stripe: {
+    publishableKey: process.env.STRIPE_PUBLISHABLE_KEY,
+    secretKey: process.env.STRIPE_SECRET_KEY,
+    webhookSecret: process.env.STRIPE_WEBHOOK_SECRET,
+  },
+
+  app: {
+    frontendUrl: process.env.FRONTEND_URL || 'http://localhost:3000',
+  },
+
   security: {
     AES_KEY: process.env.AES_KEY,
     AES_IV: process.env.AES_IV,

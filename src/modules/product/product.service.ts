@@ -6,6 +6,15 @@ import { deleteFromCloudinary, uploadToCloudinary } from '../../utils/cloudinary
 import Product from './product.model';
 import Category from '../category/category.model';
 
+const generateInventoryId = async () => {
+  const year = new Date().getFullYear();
+  const count = await Product.countDocuments({
+    inventoryId: { $regex: `^AUC-${year}-` },
+  });
+
+  return `AUC-${year}-${String(count + 1).padStart(4, '0')}`;
+};
+
 const createProduct = async (
   payload: Partial<IProduct>,
   email: string,
@@ -38,7 +47,7 @@ const createProduct = async (
 
   const productData = {
     ...payload,
-    categoryId: payload.categoryId,
+    inventoryId: payload.inventoryId || (await generateInventoryId()),
     images: uploadedImages,
     inventoryStatus: 'available',
     totalReview: 0,
@@ -151,6 +160,105 @@ const getProductDetails = async (id: string) => {
   return result;
 };
 
+const getInventoryMonitoring = async (query: Record<string, unknown>) => {
+  const { inventoryStatus, category, searchTerm } = query;
+  const filter: Record<string, unknown> = {};
+
+  if (inventoryStatus) {
+    filter.inventoryStatus = inventoryStatus;
+  }
+
+  if (category) {
+    filter.category = category;
+  }
+
+  if (searchTerm) {
+    filter.$or = [
+      { title: { $regex: searchTerm, $options: 'i' } },
+      { inventoryId: { $regex: searchTerm, $options: 'i' } },
+      { category: { $regex: searchTerm, $options: 'i' } },
+    ];
+  }
+
+  const products = await Product.aggregate([
+    { $match: filter },
+    {
+      $lookup: {
+        from: 'auctions',
+        localField: '_id',
+        foreignField: 'product',
+        as: 'auction',
+      },
+    },
+    { $unwind: { path: '$auction', preserveNullAndEmptyArrays: true } },
+    {
+      $lookup: {
+        from: 'invoices',
+        localField: '_id',
+        foreignField: 'product',
+        as: 'invoice',
+      },
+    },
+    { $unwind: { path: '$invoice', preserveNullAndEmptyArrays: true } },
+    {
+      $lookup: {
+        from: 'users',
+        localField: 'auction.winner',
+        foreignField: '_id',
+        as: 'winner',
+      },
+    },
+    { $unwind: { path: '$winner', preserveNullAndEmptyArrays: true } },
+    {
+      $lookup: {
+        from: 'pickupappointments',
+        localField: '_id',
+        foreignField: 'products',
+        as: 'pickupAppointment',
+      },
+    },
+    { $unwind: { path: '$pickupAppointment', preserveNullAndEmptyArrays: true } },
+    {
+      $lookup: {
+        from: 'pickupslots',
+        localField: 'pickupAppointment.slot',
+        foreignField: '_id',
+        as: 'pickupSlot',
+      },
+    },
+    { $unwind: { path: '$pickupSlot', preserveNullAndEmptyArrays: true } },
+    {
+      $project: {
+        title: 1,
+        inventoryId: 1,
+        category: 1,
+        condition: 1,
+        inventoryStatus: 1,
+        reservePrice: 1,
+        images: 1,
+        auctionId: '$auction._id',
+        auctionStatus: '$auction.status',
+        winningBid: '$auction.highestBid.amount',
+        winner: {
+          _id: '$winner._id',
+          firstName: '$winner.firstName',
+          lastName: '$winner.lastName',
+          email: '$winner.email',
+          phone: '$winner.phone',
+        },
+        paymentStatus: '$invoice.status',
+        invoiceNumber: '$invoice.invoiceNumber',
+        pickupStatus: '$pickupAppointment.status',
+        pickupDate: '$pickupSlot.startsAt',
+        pickupEndsAt: '$pickupSlot.endsAt',
+      },
+    },
+    { $sort: { createdAt: -1 } },
+  ]);
+
+  return products;
+};
+
 const updateProduct = async (
   id: string,
   payload: Partial<IProduct>,
@@ -205,11 +313,36 @@ const updateProduct = async (
   return result;
 };
 
+const deleteProduct = async (id: string, email: string) => {
+  const user = await User.isUserExistByEmail(email);
+  if (!user) {
+    throw new AppError('User not found', StatusCodes.FORBIDDEN);
+  }
+
+  const product = await Product.findById(id);
+  if (!product) {
+    throw new AppError('Product not found', StatusCodes.NOT_FOUND);
+  }
+
+  if (!['available', 'unsold', 'unavailable'].includes(product.inventoryStatus)) {
+    throw new AppError('Only inactive inventory can be deleted', StatusCodes.BAD_REQUEST);
+  }
+
+  if (product.images?.length) {
+    await Promise.all(product.images.map((image) => deleteFromCloudinary(image.public_id)));
+  }
+
+  await Product.findByIdAndDelete(id);
+  return product;
+};
+
 const productService = {
   createProduct,
   getAllProducts,
   getProductDetails,
+  getInventoryMonitoring,
   updateProduct,
+  deleteProduct,
 };
 
 export default productService;

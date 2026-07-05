@@ -27,6 +27,39 @@ export interface IProduct {
     public_id: string;
     url: string;
   }[];
+  color: [string];
   totalReview: number;
   averageReview: number;
+}
+
+export interface IBulkProductRow {
+  title: string;
+  description: string;
+  categoryId: string;
+  condition: string;
+  reservePrice: number;
+  retailPrice?: number;
+  color: string[];
+  imageFolder: string;
+}
+
+export interface IBulkUploadSuccess {
+  row: number;
+  title: string;
+  inventoryId: string;
+  productId: string;
+}
+
+export interface IBulkUploadFailure {
+  row: number;
+  title?: string;
+  error: string;
+}
+
+export interface IBulkUploadResult {
+  totalProcessed: number;
+  totalSucceeded: number;
+  totalFailed: number;
+  success: IBulkUploadSuccess[];
+  failed: IBulkUploadFailure[];
 }

@@ -98,6 +98,11 @@ const productSchema = new Schema<IProduct>(
       min: 0,
     },
 
+    color: {
+      type: [String],
+      default: [],
+    },
+
     averageReview: {
       type: Number,
       default: 0,

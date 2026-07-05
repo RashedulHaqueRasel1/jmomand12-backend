@@ -13,9 +13,20 @@ router.post(
   productController.creteNewProduct,
 );
 
+router.post(
+  '/bulk',
+  auth(USER_ROLE.ADMIN),
+  upload.single('file'),
+  productController.productBulkUpload,
+);
+
 router.get('/', productController.getAllProducts);
 router.get('/all', productController.getAllProducts);
-router.get('/inventory-monitoring', auth(USER_ROLE.ADMIN), productController.getInventoryMonitoring);
+router.get(
+  '/inventory-monitoring',
+  auth(USER_ROLE.ADMIN),
+  productController.getInventoryMonitoring,
+);
 router.get('/:id', productController.getProductDetails);
 router.patch(
   '/:id',

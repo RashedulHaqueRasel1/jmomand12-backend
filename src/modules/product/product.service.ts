@@ -1,10 +1,25 @@
 import { StatusCodes } from 'http-status-codes';
 import AppError from '../../errors/AppError';
 import { User } from '../user/user.model';
-import { IProduct } from './product.interface';
+import { IBulkUploadResult, IProduct } from './product.interface';
 import { deleteFromCloudinary, uploadToCloudinary } from '../../utils/cloudinary';
 import Product from './product.model';
 import Category from '../category/category.model';
+import fs from 'fs';
+import pLimit from 'p-limit';
+import {
+  findDirRecursive,
+  findFileRecursive,
+  generateInventoryIdsBatch,
+  listImageFiles,
+  parseProductsCsv,
+  safeCleanup,
+  validateProductRowShape,
+} from '../../utils/product.utils';
+import path from 'path';
+import AdmZip from 'adm-zip';
+import { v4 as uuid } from 'uuid';
+import os from 'os';
 
 const generateInventoryId = async () => {
   const year = new Date().getFullYear();
@@ -56,6 +71,182 @@ const createProduct = async (
 
   const result = await Product.create(productData);
   return result;
+};
+
+const IMAGE_UPLOAD_CONCURRENCY = 10;
+const MAX_PRODUCTS_PER_BATCH = 1000;
+
+const bulkUploadProducts = async (
+  zipFile: Express.Multer.File,
+  email: string,
+): Promise<IBulkUploadResult> => {
+  if (!zipFile) {
+    throw new AppError('A ZIP file is required', StatusCodes.BAD_REQUEST);
+  }
+
+  const user = await User.findOne({ email });
+  if (!user) {
+    safeCleanup(zipFile.path);
+    throw new AppError('Your account is not found', StatusCodes.FORBIDDEN);
+  }
+
+  const extractDir = path.join(os.tmpdir(), `bulk-upload-${uuid()}`);
+
+  try {
+    fs.mkdirSync(extractDir, { recursive: true });
+
+    // 1. Extract ZIP
+    try {
+      new AdmZip(zipFile.path).extractAllTo(extractDir, true);
+    } catch {
+      throw new AppError('Uploaded file is not a valid ZIP archive', StatusCodes.BAD_REQUEST);
+    }
+
+    // 2. Locate products.csv and images/ directory anywhere in the archive
+    const csvPath = findFileRecursive(extractDir, 'products.csv');
+    if (!csvPath) {
+      throw new AppError('products.csv not found in the ZIP archive', StatusCodes.BAD_REQUEST);
+    }
+
+    const imagesRootDir = findDirRecursive(extractDir, 'images');
+    if (!imagesRootDir) {
+      throw new AppError('images/ folder not found in the ZIP archive', StatusCodes.BAD_REQUEST);
+    }
+
+    // 3. Parse CSV
+    const rows = parseProductsCsv(csvPath);
+    if (!rows.length) {
+      throw new AppError('products.csv contains no data rows', StatusCodes.BAD_REQUEST);
+    }
+    if (rows.length > MAX_PRODUCTS_PER_BATCH) {
+      throw new AppError(
+        `Cannot upload more than ${MAX_PRODUCTS_PER_BATCH} products at once`,
+        StatusCodes.BAD_REQUEST,
+      );
+    }
+
+    // 4. Validate all categories in a single query (avoids N round-trips)
+    const categoryIds = [...new Set(rows.map((r) => String(r.categoryId)).filter(Boolean))];
+    const existingCategories = await Category.find({ _id: { $in: categoryIds } }).select('_id');
+    const validCategoryIds = new Set(existingCategories.map((c) => String(c._id)));
+
+    // 5. Reserve inventory IDs for the whole batch in one atomic DB call
+    const inventoryIds = await generateInventoryIdsBatch(rows.length);
+
+    // 6. Process every row independently; a single image upload failure or
+    // missing folder must not abort the batch
+    const limit = pLimit(IMAGE_UPLOAD_CONCURRENCY);
+    const result: IBulkUploadResult = {
+      totalProcessed: rows.length,
+      totalSucceeded: 0,
+      totalFailed: 0,
+      success: [],
+      failed: [],
+    };
+
+    const documentsToInsert: any[] = [];
+    const metaByInsertIndex: Array<{ row: number; title: string }> = [];
+
+    await Promise.all(
+      rows.map(async (row, idx) => {
+        try {
+          const shapeError = validateProductRowShape(row);
+          if (shapeError) throw new Error(shapeError);
+
+          if (!validCategoryIds.has(String(row.categoryId))) {
+            throw new Error('Category not found');
+          }
+
+          const folderPath = path.join(imagesRootDir, row.imageFolder);
+          if (!fs.existsSync(folderPath) || !fs.statSync(folderPath).isDirectory()) {
+            throw new Error(`Image folder "${row.imageFolder}" not found`);
+          }
+
+          const imageFilePaths = listImageFiles(folderPath);
+          if (!imageFilePaths.length) {
+            throw new Error(`No images found in folder "${row.imageFolder}"`);
+          }
+
+          // Concurrency-limited globally across the whole batch, not per product,
+          // so total simultaneous Cloudinary calls never exceed the cap.
+          const uploadedImages = await Promise.all(
+            imageFilePaths.map((filePath) =>
+              limit(async () => {
+                const image = await uploadToCloudinary(filePath, 'products');
+                return { public_id: image.public_id, url: image.secure_url };
+              }),
+            ),
+          );
+
+          documentsToInsert.push({
+            title: row.title,
+            description: row.description,
+            categoryId: row.categoryId,
+            condition: row.condition,
+            reservePrice: row.reservePrice,
+            retailPrice: row.retailPrice,
+            color: row.color,
+            inventoryId: inventoryIds[idx],
+            images: uploadedImages,
+            inventoryStatus: 'available',
+            totalReview: 0,
+            averageReview: 0,
+          });
+          metaByInsertIndex.push({ row: row.row, title: row.title });
+        } catch (err) {
+          result.failed.push({
+            row: row.row,
+            title: row.title,
+            error: err instanceof Error ? err.message : 'Unknown error',
+          });
+        }
+      }),
+    );
+
+    // 7. Bulk insert survivors. ordered:false ensures a single duplicate-key
+    // or validation error doesn't block the rest of the batch.
+    if (documentsToInsert.length) {
+      try {
+        const inserted = await Product.insertMany(documentsToInsert, { ordered: false });
+        inserted.forEach((doc: any, i: number) => {
+          result.success.push({
+            row: metaByInsertIndex[i].row,
+            title: metaByInsertIndex[i].title,
+            inventoryId: doc.inventoryId,
+            productId: String(doc._id),
+          });
+        });
+      } catch (bulkErr: any) {
+        (bulkErr.insertedDocs || []).forEach((doc: any) => {
+          const idx = documentsToInsert.findIndex((d) => d.inventoryId === doc.inventoryId);
+          result.success.push({
+            row: metaByInsertIndex[idx]?.row,
+            title: metaByInsertIndex[idx]?.title,
+            inventoryId: doc.inventoryId,
+            productId: String(doc._id),
+          });
+        });
+        (bulkErr.writeErrors || []).forEach((e: any) => {
+          const meta = metaByInsertIndex[e.index];
+          result.failed.push({
+            row: meta?.row ?? -1,
+            title: meta?.title,
+            error: e.errmsg || e.err?.errmsg || 'Insert failed',
+          });
+        });
+      }
+    }
+
+    result.totalSucceeded = result.success.length;
+    result.totalFailed = result.failed.length;
+
+    return result;
+  } finally {
+    // Always clean up, success or failure — extracted files and the zip
+    // itself can be large and must not accumulate on disk.
+    safeCleanup(extractDir);
+    safeCleanup(zipFile.path);
+  }
 };
 
 const getAllProducts = async (query: Record<string, unknown>) => {
@@ -338,6 +529,7 @@ const deleteProduct = async (id: string, email: string) => {
 
 const productService = {
   createProduct,
+  bulkUploadProducts,
   getAllProducts,
   getProductDetails,
   getInventoryMonitoring,

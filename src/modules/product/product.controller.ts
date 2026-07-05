@@ -20,6 +20,19 @@ const creteNewProduct = catchAsync(async (req, res) => {
   });
 });
 
+const productBulkUpload = catchAsync(async (req, res) => {
+  const { email } = req.user;
+  const zipFile = req.file as Express.Multer.File;
+  const result = await productService.bulkUploadProducts(zipFile, email);
+
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: 'Bulk product upload processed',
+    data: result,
+  });
+});
+
 const getAllProducts = catchAsync(async (req, res) => {
   const result = await productService.getAllProducts(req.query);
 
@@ -90,6 +103,7 @@ const deleteProduct = catchAsync(async (req, res) => {
 
 const productController = {
   creteNewProduct,
+  productBulkUpload,
   getAllProducts,
   getProductDetails,
   getInventoryMonitoring,

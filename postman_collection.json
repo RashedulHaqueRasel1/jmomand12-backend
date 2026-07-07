@@ -1,0 +1,1646 @@
+{
+  "info": {
+    "name": "Javed Momand Liquidation Auction Platform API",
+    "description": "# Jmomand API - Postman Collection\n\nComplete API collection for the Javed Momand Liquidation Auction Platform.\n\n## Getting Started\n\n1. **Set Environment Variables** - Update `base_url` to your server (default: `http://localhost:5000`)\n2. **Authenticate** - Use the Login endpoint, then set the returned `accessToken` to the `auth_token` variable\n3. **Entity IDs** - As you create resources, set the corresponding variables (`product_id`, `auction_id`, etc.)\n\n## Authentication\n\n- Most endpoints require a **Bearer JWT token** sent via `Authorization: Bearer <token>` header\n- The `auth_token` collection variable is auto-injected into all protected requests\n- Admin endpoints require an admin account to be logged in\n\n## Flow (Recommended Order)\n\n1. **Auth** - Login/Register → set `auth_token`\n2. **Users** - Register, verify email, manage profile\n3. **Category** - Create/get categories (needed for products)\n4. **Products** - Create inventory products with images\n5. **Auctions** - Schedule auctions for products, list, bid, close\n6. **Payments** - Setup Stripe saved-card payment methods\n7. **Invoices** - View invoices after auction wins\n8. **Pickups** - Schedule and complete pickups\n9. **Reports** - View analytics (admin)\n10. **Settings** - Configure platform rules (admin)\n\n## Response Format\n\nAll API responses follow this structure:\n\n```json\n{\n  \"success\": true,\n  \"message\": \"Action completed successfully\",\n  \"statusCode\": 200,\n  \"data\": { ... },\n  \"meta\": {\n    \"page\": 1,\n    \"limit\": 10,\n    \"total\": 100,\n    \"totalPage\": 10\n  },\n  \"_links\": {\n    \"relatedAction\": \"/api/v1/path\"\n  }\n}\n```",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "🏷️ Auth",
+      "description": "Authentication, token refresh, OTP, and password management APIs.",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "try {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.success && jsonData.data?.accessToken) {",
+                  "        pm.collectionVariables.set('auth_token', jsonData.data.accessToken);",
+                  "        console.log('✓ Token extracted and saved.');",
+                  "    }",
+                  "} catch (e) {",
+                  "    console.log('Could not auto-extract token:', e.message);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"customer@example.com\",\n  \"password\": \"secret123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "login"]
+            },
+            "description": "Authenticate with email and password to receive JWT access and refresh tokens.\n\n**Response includes:** `accessToken`, `refreshToken` (cookie), and `user` object.\n\nThe access token is automatically saved to `auth_token` collection variable on success."
+          },
+          "response": []
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/refresh-token",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "refresh-token"]
+            },
+            "description": "Refresh the access token using the refresh token stored in the HTTP-only cookie."
+          },
+          "response": []
+        },
+        {
+          "name": "Forgot Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"customer@example.com\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/forgot-password",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "forgot-password"]
+            },
+            "description": "Request a password reset OTP code sent to the registered email address."
+          },
+          "response": []
+        },
+        {
+          "name": "Resend Forgot OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/resend-forgot-otp",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "resend-forgot-otp"]
+            },
+            "description": "Resend the forgot-password OTP code. Requires authentication (user must be logged in)."
+          },
+          "response": []
+        },
+        {
+          "name": "Verify OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"otp\": \"123456\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/verify-otp",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "verify-otp"]
+            },
+            "description": "Verify the OTP code received during forgot-password flow."
+          },
+          "response": []
+        },
+        {
+          "name": "Reset Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"newPassword\": \"newSecret123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/reset-password",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "reset-password"]
+            },
+            "description": "Set a new password after successful OTP verification."
+          },
+          "response": []
+        },
+        {
+          "name": "Change Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"secret123\",\n  \"newPassword\": \"newSecret123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/change-password",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "change-password"]
+            },
+            "description": "Change password for the currently authenticated user. Requires both current and new passwords."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "👤 Users",
+      "description": "Customer registration, profile management, email verification, and admin user management APIs.",
+      "item": [
+        {
+          "name": "Register User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Javed\",\n  \"lastName\": \"Momand\",\n  \"email\": \"customer@example.com\",\n  \"phone\": \"+15555555555\",\n  \"password\": \"secret123\",\n  \"street\": \"123 Main St\",\n  \"location\": \"Virginia\",\n  \"postalCode\": \"22030\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/register",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "users", "register"]
+            },
+            "description": "Register a new customer account. Also accessible at `POST /api/v1/users/`.\n\n**Note:** After registration, verify email using the email-verifications endpoint."
+          },
+          "response": []
+        },
+        {
+          "name": "Verify Email",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"otp\": \"123456\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/email-verifications",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "users", "email-verifications"]
+            },
+            "description": "Verify your email address using the OTP code sent after registration.\n\n**Alias:** `POST /api/v1/users/verify-email`"
+          },
+          "response": []
+        },
+        {
+          "name": "Resend Email Verification OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/email-verifications/resend",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "users", "email-verifications", "resend"]
+            },
+            "description": "Resend the email verification OTP code.\n\n**Alias:** `POST /api/v1/users/resend-otp`"
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Users (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/users",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "users"]
+            },
+            "description": "Admin-only: List all registered users.\n\n**Alias:** `GET /api/v1/users/all-users`"
+          },
+          "response": []
+        },
+        {
+          "name": "Get My Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/me",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "users", "me"]
+            },
+            "description": "Get the profile of the currently authenticated user.\n\n**Alias:** `GET /api/v1/users/my-profile`"
+          },
+          "response": []
+        },
+        {
+          "name": "Update My Profile",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "firstName",
+                  "value": "Javed",
+                  "type": "text"
+                },
+                {
+                  "key": "lastName",
+                  "value": "Momand",
+                  "type": "text"
+                },
+                {
+                  "key": "phone",
+                  "value": "+15555555555",
+                  "type": "text"
+                },
+                {
+                  "key": "image",
+                  "type": "file",
+                  "src": ""
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/me",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "users", "me"]
+            },
+            "description": "Update profile fields and optionally upload a profile image (multipart/form-data).\n\n**Alias:** `PUT /api/v1/users/update-profile`"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Admin ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/admin-id",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "users", "admin-id"]
+            },
+            "description": "Get the primary admin user ID.\n\n**Alias:** `GET /api/v1/users/admin_id`"
+          },
+          "response": []
+        },
+        {
+          "name": "Get User Details (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/{{user_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "users", "{{user_id}}"]
+            },
+            "description": "Admin-only: Get details of a specific user by ID."
+          },
+          "response": []
+        },
+        {
+          "name": "Toggle User Suspension (Admin)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/{{user_id}}/suspension",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "users", "{{user_id}}", "suspension"]
+            },
+            "description": "Admin-only: Toggle the suspension status of a user.\n\n**Alias:** `PUT /api/v1/users/suspend/{{user_id}}`"
+          },
+          "response": []
+        },
+        {
+          "name": "Toggle User Block (Admin)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/{{user_id}}/block",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "users", "{{user_id}}", "block"]
+            },
+            "description": "Admin-only: Toggle the block status of a user.\n\n**Alias:** `PUT /api/v1/users/block/{{user_id}}`"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "📁 Category",
+      "description": "Product category management APIs.",
+      "item": [
+        {
+          "name": "Create Category",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "name",
+                  "value": "Electronics",
+                  "type": "text"
+                },
+                {
+                  "key": "image",
+                  "type": "file",
+                  "src": ""
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/category",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "category"]
+            },
+            "description": "Create a new product category with optional image."
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Categories",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/category/all",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "category", "all"]
+            },
+            "description": "Get all product categories (public)."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Category by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/category/{{category_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "category", "{{category_id}}"]
+            },
+            "description": "Get a single category by its ID."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Category",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "name",
+                  "value": "Electronics & Gadgets",
+                  "type": "text"
+                },
+                {
+                  "key": "image",
+                  "type": "file",
+                  "src": ""
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/category/update/{{category_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "category", "update", "{{category_id}}"]
+            },
+            "description": "Update a category name and/or image."
+          },
+          "response": []
+        },
+        {
+          "name": "Toggle Category Deleted",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/category/toggle/{{category_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "category", "toggle", "{{category_id}}"]
+            },
+            "description": "Toggle the deleted/active status of a category."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "📦 Products",
+      "description": "Inventory product, media upload, detail, update, delete, and monitoring APIs.",
+      "item": [
+        {
+          "name": "Create Product (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "title",
+                  "value": "Fender Guitar",
+                  "type": "text"
+                },
+                {
+                  "key": "description",
+                  "value": "Used guitar in good condition",
+                  "type": "text"
+                },
+                {
+                  "key": "category",
+                  "value": "Music",
+                  "type": "text"
+                },
+                {
+                  "key": "condition",
+                  "value": "used",
+                  "type": "text",
+                  "description": "Options: new, open_box, like_new, used, damaged, for_parts"
+                },
+                {
+                  "key": "reservePrice",
+                  "value": "150",
+                  "type": "text"
+                },
+                {
+                  "key": "retailPrice",
+                  "value": "499",
+                  "type": "text"
+                },
+                {
+                  "key": "images",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/products",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "products"]
+            },
+            "description": "Admin-only: Create a new inventory product with Cloudinary image uploads (multipart/form-data).\n\n**Required fields:** `title`, `description`, `category`, `condition`, `reservePrice`, `images`"
+          },
+          "response": []
+        },
+        {
+          "name": "List Products",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/products?searchTerm=&category=&condition=&inventoryStatus=&page=1&limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "products"],
+              "query": [
+                { "key": "searchTerm", "value": "", "description": "Search by title/description" },
+                { "key": "category", "value": "", "description": "Filter by category name" },
+                { "key": "condition", "value": "", "description": "Filter by condition (new, used, etc.)" },
+                { "key": "inventoryStatus", "value": "", "description": "Filter by inventory status" },
+                { "key": "page", "value": "1", "description": "Page number" },
+                { "key": "limit", "value": "10", "description": "Items per page" }
+              ]
+            },
+            "description": "List products with optional search, filter, and pagination.\n\n**Alias:** `GET /api/v1/products/all`"
+          },
+          "response": []
+        },
+        {
+          "name": "Inventory Monitoring (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/products/inventory-monitoring?inventoryStatus=&category=&searchTerm=",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "products", "inventory-monitoring"],
+              "query": [
+                { "key": "inventoryStatus", "value": "", "description": "Filter by inventory status" },
+                { "key": "category", "value": "", "description": "Filter by category" },
+                { "key": "searchTerm", "value": "", "description": "Search term" }
+              ]
+            },
+            "description": "Admin-only: Inventory monitoring dashboard with auction, payment, winner, and pickup state."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Product Details",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/products/{{product_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "products", "{{product_id}}"]
+            },
+            "description": "Get detailed information about a specific product."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Product (Admin)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "title",
+                  "value": "Fender Guitar (Updated)",
+                  "type": "text"
+                },
+                {
+                  "key": "description",
+                  "value": "Updated description",
+                  "type": "text"
+                },
+                {
+                  "key": "category",
+                  "value": "Music Instruments",
+                  "type": "text"
+                },
+                {
+                  "key": "reservePrice",
+                  "value": "200",
+                  "type": "text"
+                },
+                {
+                  "key": "retailPrice",
+                  "value": "599",
+                  "type": "text"
+                },
+                {
+                  "key": "images",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/products/{{product_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "products", "{{product_id}}"]
+            },
+            "description": "Admin-only: Update product details and optionally replace images.\n\n**Alias:** `PUT /api/v1/products/update/{{product_id}}`"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Product (Admin)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/products/{{product_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "products", "{{product_id}}"]
+            },
+            "description": "Admin-only: Delete an inactive product and its Cloudinary images."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "🔨 Auctions",
+      "description": "Auction scheduling, listing, bidding, closing, and bid history APIs.",
+      "item": [
+        {
+          "name": "Create Auction (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"product\": \"{{product_id}}\",\n  \"title\": \"Fender Guitar Auction\",\n  \"startsAt\": \"2026-08-10T13:00:00.000Z\",\n  \"endsAt\": \"2026-08-11T13:00:00.000Z\",\n  \"startingBid\": 1,\n  \"bidIncrement\": 5,\n  \"reservePrice\": 150\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auctions",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auctions"]
+            },
+            "description": "Admin-only: Schedule an auction for a product."
+          },
+          "response": []
+        },
+        {
+          "name": "List Auctions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auctions?status=&page=1&limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auctions"],
+              "query": [
+                { "key": "status", "value": "", "description": "Filter by status (active, upcoming, closed, etc.)" },
+                { "key": "page", "value": "1", "description": "Page number" },
+                { "key": "limit", "value": "10", "description": "Items per page" }
+              ]
+            },
+            "description": "List all auctions with optional status filter and pagination.\n\n**Alias:** `GET /api/v1/auctions/all`"
+          },
+          "response": []
+        },
+        {
+          "name": "Process Due Auctions (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auctions/process-due",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auctions", "process-due"]
+            },
+            "description": "Admin-only: Manually process due auction activations and closures.\n\n**Alias:** `POST /api/v1/auctions/close-due`"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Auction Details",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auctions/{{auction_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auctions", "{{auction_id}}"]
+            },
+            "description": "Get detailed information about a specific auction, including current bid status."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Bid History (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auctions/{{auction_id}}/bids",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auctions", "{{auction_id}}", "bids"]
+            },
+            "description": "Admin-only: List all bids placed on a specific auction."
+          },
+          "response": []
+        },
+        {
+          "name": "Place Bid",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 205\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auctions/{{auction_id}}/bids",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auctions", "{{auction_id}}", "bids"]
+            },
+            "description": "Place a bid on an active auction. User must have a saved Stripe card as default payment method.\n\n**Alias:** `POST /api/v1/auctions/{{auction_id}}/bid`"
+          },
+          "response": []
+        },
+        {
+          "name": "Close Auction (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"manual_admin_close\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auctions/{{auction_id}}/close",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auctions", "{{auction_id}}", "close"]
+            },
+            "description": "Admin-only: Force-close an auction, validate reserve price, and auto-charge the winning bidder's saved card."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "💳 Payments",
+      "description": "Stripe saved-card setup, default payment method, and test-card helper APIs.",
+      "item": [
+        {
+          "name": "Create SetupIntent",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/payments/setup-intents",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "payments", "setup-intents"]
+            },
+            "description": "Create a Stripe SetupIntent for saved-card registration.\n\n**Returns:** `customerId`, `setupIntentId`, `clientSecret`, and `publishableKey`.\n\n**Flow:** Frontend uses Stripe.js/Elements to confirm the SetupIntent, then calls `POST /payments/default-payment-method` with the confirmed `setupIntentId`.\n\n**Alias:** `POST /api/v1/payments/setup-intent`"
+          },
+          "response": []
+        },
+        {
+          "name": "Check SetupIntent Status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/payments/setup-intents/{{setup_intent_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "payments", "setup-intents", "{{setup_intent_id}}"]
+            },
+            "description": "Check whether a Stripe SetupIntent has been confirmed and can be saved as default payment method.\n\n**Alias:** `GET /api/v1/payments/setup-intent/{{setup_intent_id}}`"
+          },
+          "response": []
+        },
+        {
+          "name": "Save Default Payment Method",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"setupIntentId\": \"seti_123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/payments/default-payment-method",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "payments", "default-payment-method"]
+            },
+            "description": "Save a confirmed Stripe SetupIntent payment method as the user's default card.\n\n⚠️ **PCI-safe flow:** Do NOT send raw card numbers. Use Stripe.js/Elements on frontend to confirm the SetupIntent clientSecret, then send the succeeded `setupIntentId` here.\n\n**Alias:** `POST /api/v1/payments/default-method`"
+          },
+          "response": []
+        },
+        {
+          "name": "Test Default Payment Method",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"testPaymentMethodId\": \"pm_card_visa\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/payments/test-default-payment-method",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "payments", "test-default-payment-method"]
+            },
+            "description": "⚠️ **Development/Test only.** Save a Stripe test card for testing the bidding flow. Only works outside production with a Stripe test secret key. Default test card is `pm_card_visa`."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "📄 Invoices",
+      "description": "Customer invoice, admin invoice, and pickup QR/code verification APIs.",
+      "item": [
+        {
+          "name": "Get My Invoices (Customer)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/invoices/me",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "invoices", "me"]
+            },
+            "description": "Get invoices for the currently authenticated customer.\n\n**Alias:** `GET /api/v1/invoices/my`"
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Invoices (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/invoices",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "invoices"]
+            },
+            "description": "Admin-only: List all invoices across all customers.\n\n**Alias:** `GET /api/v1/invoices/all`"
+          },
+          "response": []
+        },
+        {
+          "name": "Verify Pickup Token (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tokenOrCode\": \"A1B2C3D4\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/invoices/verify-pickup",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "invoices", "verify-pickup"]
+            },
+            "description": "Admin-only: Verify an invoice's pickup QR token or alphanumeric pickup code."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "🚚 Pickups",
+      "description": "Pickup slot management, appointment scheduling, and completion APIs.",
+      "item": [
+        {
+          "name": "Create Pickup Slot (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"startsAt\": \"2026-08-12T14:00:00.000Z\",\n  \"endsAt\": \"2026-08-12T15:00:00.000Z\",\n  \"maxCustomers\": 5,\n  \"maxItems\": 20\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/pickups/slots",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "pickups", "slots"]
+            },
+            "description": "Admin-only: Create a new pickup capacity time slot."
+          },
+          "response": []
+        },
+        {
+          "name": "List Available Slots",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/pickups/slots",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "pickups", "slots"]
+            },
+            "description": "List available pickup slots that can be booked."
+          },
+          "response": []
+        },
+        {
+          "name": "List All Slots (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/pickups/slots/all",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "pickups", "slots", "all"]
+            },
+            "description": "Admin-only: List all pickup slots including inactive and full ones."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Ready Invoices (Customer)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/pickups/ready-invoices",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "pickups", "ready-invoices"]
+            },
+            "description": "Get paid invoices that are ready for pickup scheduling."
+          },
+          "response": []
+        },
+        {
+          "name": "Schedule Pickup (Customer)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"slotId\": \"{{slot_id}}\",\n  \"invoiceIds\": [\"{{invoice_id}}\"]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/pickups",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "pickups"]
+            },
+            "description": "Schedule one or many paid invoices into a single pickup appointment.\n\n**Alias:** `POST /api/v1/pickups/schedule`"
+          },
+          "response": []
+        },
+        {
+          "name": "Get My Appointments (Customer)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/pickups/me",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "pickups", "me"]
+            },
+            "description": "Get pickup appointments for the currently authenticated customer.\n\n**Alias:** `GET /api/v1/pickups/my-appointments`"
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Appointments (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/pickups",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "pickups"]
+            },
+            "description": "Admin-only: List all pickup appointments.\n\n**Alias:** `GET /api/v1/pickups/appointments`"
+          },
+          "response": []
+        },
+        {
+          "name": "Complete Pickup (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pickupCode\": \"A1B2C3D4\",\n  \"notes\": \"Customer picked up all items.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/pickups/complete",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "pickups", "complete"]
+            },
+            "description": "Admin-only: Complete a warehouse handover by appointment ID or pickup code."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "📞 Contacts",
+      "description": "Public contact message API.",
+      "item": [
+        {
+          "name": "Send Contact Message",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Customer Name\",\n  \"email\": \"customer@example.com\",\n  \"message\": \"I have a question about pickup.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/contacts",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "contacts"]
+            },
+            "description": "Send a public contact message. No authentication required.\n\n**Alias:** `POST /api/v1/contacts/send-message`"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "🔔 Notifications",
+      "description": "Admin notification listing and read-state APIs.",
+      "item": [
+        {
+          "name": "List Notifications (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/notifications?page=1&limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "notifications"],
+              "query": [
+                { "key": "page", "value": "1", "description": "Page number" },
+                { "key": "limit", "value": "10", "description": "Items per page" }
+              ]
+            },
+            "description": "Admin-only: List notifications with pagination."
+          },
+          "response": []
+        },
+        {
+          "name": "Mark All as Read (Admin)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/notifications/read-all",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "notifications", "read-all"]
+            },
+            "description": "Admin-only: Mark all notifications as read.\n\n**Alias:** `PATCH /api/v1/notifications/read/all`"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "⚙️ Settings",
+      "description": "Platform pickup policy, storage fee, and public settings APIs.",
+      "item": [
+        {
+          "name": "Get Settings (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/settings",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "settings"]
+            },
+            "description": "Admin-only: Get platform pickup/storage settings."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Settings (Admin)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pickupGraceDays\": 7,\n  \"storageFeePerDay\": 5,\n  \"forfeitureDays\": 30,\n  \"pickupInstructions\": \"Bring invoice QR code and photo ID.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/settings",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "settings"]
+            },
+            "description": "Admin-only: Update pickup deadline, storage fee rules, and forfeiture policies."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Public Settings",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/settings/public",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "settings", "public"]
+            },
+            "description": "Customer-visible pickup policy settings. No authentication required."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "📊 Reports",
+      "description": "Admin revenue, auction, pickup, and inventory analytics APIs.",
+      "item": [
+        {
+          "name": "Revenue Report (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/reports/revenue?startDate=&endDate=",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "reports", "revenue"],
+              "query": [
+                { "key": "startDate", "value": "", "description": "Start date (YYYY-MM-DD)" },
+                { "key": "endDate", "value": "", "description": "End date (YYYY-MM-DD)" }
+              ]
+            },
+            "description": "Admin-only: Get revenue summary from paid invoices."
+          },
+          "response": []
+        },
+        {
+          "name": "Auction Report (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/reports/auctions?startDate=&endDate=",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "reports", "auctions"],
+              "query": [
+                { "key": "startDate", "value": "", "description": "Start date (YYYY-MM-DD)" },
+                { "key": "endDate", "value": "", "description": "End date (YYYY-MM-DD)" }
+              ]
+            },
+            "description": "Admin-only: Get auction outcome summary."
+          },
+          "response": []
+        },
+        {
+          "name": "Pickup Report (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/reports/pickups?startDate=&endDate=",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "reports", "pickups"],
+              "query": [
+                { "key": "startDate", "value": "", "description": "Start date (YYYY-MM-DD)" },
+                { "key": "endDate", "value": "", "description": "End date (YYYY-MM-DD)" }
+              ]
+            },
+            "description": "Admin-only: Get pickup workload summary."
+          },
+          "response": []
+        },
+        {
+          "name": "Inventory Report (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/reports/inventory",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "reports", "inventory"]
+            },
+            "description": "Admin-only: Get inventory status summary."
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:5000",
+      "type": "string",
+      "description": "Base URL of the API server (scheme + host + port)"
+    },
+    {
+      "key": "auth_token",
+      "value": "",
+      "type": "string",
+      "description": "JWT access token. Auto-populated after successful login via test script."
+    },
+    {
+      "key": "user_id",
+      "value": "",
+      "type": "string",
+      "description": "MongoDB ObjectId of a user"
+    },
+    {
+      "key": "product_id",
+      "value": "",
+      "type": "string",
+      "description": "MongoDB ObjectId of a product"
+    },
+    {
+      "key": "auction_id",
+      "value": "",
+      "type": "string",
+      "description": "MongoDB ObjectId of an auction"
+    },
+    {
+      "key": "category_id",
+      "value": "",
+      "type": "string",
+      "description": "MongoDB ObjectId of a category"
+    },
+    {
+      "key": "setup_intent_id",
+      "value": "",
+      "type": "string",
+      "description": "Stripe SetupIntent ID (seti_xxx)"
+    },
+    {
+      "key": "invoice_id",
+      "value": "",
+      "type": "string",
+      "description": "MongoDB ObjectId of an invoice"
+    },
+    {
+      "key": "slot_id",
+      "value": "",
+      "type": "string",
+      "description": "MongoDB ObjectId of a pickup slot"
+    }
+  ]
+}

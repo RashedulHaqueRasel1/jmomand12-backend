@@ -11,6 +11,8 @@ import notificationRouter from '../modules/notification/notification.router';
 import settingsRouter from '../modules/settings/settings.router';
 import reportRouter from '../modules/report/report.router';
 import categoryRouter from '../modules/category/category.router';
+import auctionProductRouter from '../modules/AuctionProduct/AuctionProduct.router';
+import bidRouter from '../modules/bid/bid.router';
 
 const router = Router();
 
@@ -27,6 +29,14 @@ const moduleRoutes = [
   { path: '/notifications', route: notificationRouter },
   { path: '/settings', route: settingsRouter },
   { path: '/reports', route: reportRouter },
+  {
+    path: '/auction-products',
+    route: auctionProductRouter,
+  },
+  {
+    path: '/bid',
+    route: bidRouter,
+  },
 ];
 
 moduleRoutes.forEach((route) => router.use(route.path, route.route));

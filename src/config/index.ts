@@ -1,4 +1,4 @@
-import dotenv from "dotenv";
+import dotenv from 'dotenv';
 dotenv.config();
 
 export default {
@@ -42,5 +42,8 @@ export default {
   security: {
     AES_KEY: process.env.AES_KEY,
     AES_IV: process.env.AES_IV,
+  },
+  cron: {
+    enabled: process.env.CRON_ENABLED !== 'false',
   },
 };

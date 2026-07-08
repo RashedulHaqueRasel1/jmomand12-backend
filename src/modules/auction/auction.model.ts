@@ -72,22 +72,6 @@ const AuctionSchema = new Schema<IAuction>(
       required: true,
       min: 1,
     },
-
-    startingBid: {
-      type: Number,
-      required: true,
-      min: 0,
-    },
-    bidIncrement: {
-      type: Number,
-      required: true,
-      min: 1,
-    },
-    reservePrice: {
-      type: Number,
-      required: true,
-      min: 0,
-    },
     status: {
       type: String,
       enum: [
@@ -109,34 +93,9 @@ const AuctionSchema = new Schema<IAuction>(
       required: false,
     },
 
-    // Bidding Analytics
-    highestBid: {
-      bidder: {
-        type: Schema.Types.ObjectId,
-        ref: 'User',
-      },
-      amount: {
-        type: Number,
-        default: 0,
-      },
-      bid: {
-        type: Schema.Types.ObjectId,
-        ref: 'Bid',
-      },
-      placedAt: {
-        type: Date,
-      },
-    },
     winner: {
       type: Schema.Types.ObjectId,
       ref: 'User',
-    },
-    closedAt: {
-      type: Date,
-    },
-    closeReason: {
-      type: String,
-      trim: true,
     },
   },
   {

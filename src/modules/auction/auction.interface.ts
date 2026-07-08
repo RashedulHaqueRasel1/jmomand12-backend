@@ -23,27 +23,10 @@ export interface IAuction {
   products: Types.ObjectId[];
   title: string;
   description?: string;
-
-  // Auction Schedule
   startsAt: Date;
   endsAt: Date;
   durationInDays: number;
-
-  // Bidding Fields
-  startingBid: number;
-  bidIncrement: number;
-  reservePrice: number;
   status: AuctionStatus;
-
   pickupSchedule?: IPickUpSchedule;
-
-  highestBid?: {
-    bidder?: Types.ObjectId;
-    amount: number;
-    bid?: Types.ObjectId;
-    placedAt?: Date;
-  };
   winner?: Types.ObjectId;
-  closedAt?: Date;
-  closeReason?: string;
 }

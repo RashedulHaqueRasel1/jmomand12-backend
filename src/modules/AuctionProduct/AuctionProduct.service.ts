@@ -1,8 +1,18 @@
-const getAllAuctionProducts = async () => {};
+import { Types } from 'mongoose';
+import AuctionProduct from './AuctionProduct.model';
+
+const getProductsByAuctionId = async (auctionId: string) => {
+  const result = await AuctionProduct.find({
+    auctionId: new Types.ObjectId(auctionId),
+  });
+
+  return result;
+};
+
 const getSingleAuctionProduct = async () => {};
 
 const auctionProductService = {
-  getAllAuctionProducts,
+  getProductsByAuctionId,
   getSingleAuctionProduct,
 };
 

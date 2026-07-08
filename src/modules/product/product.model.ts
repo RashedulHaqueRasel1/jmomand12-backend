@@ -41,10 +41,10 @@ const productSchema = new Schema<IProduct>(
       trim: true,
     },
 
-    categoryId: {
-      type: Schema.Types.ObjectId,
-      ref: 'Category',
+    category: {
+      type: String,
       required: true,
+      trim: true,
     },
 
     condition: {
@@ -52,7 +52,7 @@ const productSchema = new Schema<IProduct>(
       required: true,
       enum: ['new', 'open_box', 'like_new', 'used', 'damaged', 'for_parts'],
     },
-
+    day: { type: String, required: true, trim: true },
     reservePrice: {
       type: Number,
       required: true,

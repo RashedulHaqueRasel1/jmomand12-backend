@@ -18,8 +18,8 @@ export interface IAuctionHighestBid {
 }
 
 export interface IAuctionProduct {
-  auction: Types.ObjectId;
-  product: Types.ObjectId;
+  auctionId: Types.ObjectId;
+  productId: Types.ObjectId;
   startingBid: number;
   reservePrice: number;
   bidIncrement: number;

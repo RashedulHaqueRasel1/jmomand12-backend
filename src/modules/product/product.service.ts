@@ -40,11 +40,6 @@ const createProduct = async (
     throw new AppError('Your account is not found', StatusCodes.FORBIDDEN);
   }
 
-  const category = await Category.findById(payload.categoryId);
-  if (!category) {
-    throw new AppError('Category not found', StatusCodes.NOT_FOUND);
-  }
-
   if (!files?.length) {
     throw new AppError('At least one product image is required', StatusCodes.BAD_REQUEST);
   }
@@ -63,6 +58,8 @@ const createProduct = async (
   const productData = {
     ...payload,
     inventoryId: payload.inventoryId || (await generateInventoryId()),
+    category: payload.category,
+    day: payload.day,
     images: uploadedImages,
     inventoryStatus: 'available',
     totalReview: 0,
@@ -125,11 +122,6 @@ const bulkUploadProducts = async (
       );
     }
 
-    // 4. Validate all categories in a single query (avoids N round-trips)
-    const categoryIds = [...new Set(rows.map((r) => String(r.categoryId)).filter(Boolean))];
-    const existingCategories = await Category.find({ _id: { $in: categoryIds } }).select('_id');
-    const validCategoryIds = new Set(existingCategories.map((c) => String(c._id)));
-
     // 5. Reserve inventory IDs for the whole batch in one atomic DB call
     const inventoryIds = await generateInventoryIdsBatch(rows.length);
 
@@ -152,10 +144,6 @@ const bulkUploadProducts = async (
         try {
           const shapeError = validateProductRowShape(row);
           if (shapeError) throw new Error(shapeError);
-
-          if (!validCategoryIds.has(String(row.categoryId))) {
-            throw new Error('Category not found');
-          }
 
           const folderPath = path.join(imagesRootDir, row.imageFolder);
           if (!fs.existsSync(folderPath) || !fs.statSync(folderPath).isDirectory()) {
@@ -181,11 +169,12 @@ const bulkUploadProducts = async (
           documentsToInsert.push({
             title: row.title,
             description: row.description,
-            categoryId: row.categoryId,
+            categoryId: row.category,
             condition: row.condition,
             reservePrice: row.reservePrice,
             retailPrice: row.retailPrice,
             color: row.color,
+            day: row.day,
             inventoryId: inventoryIds[idx],
             images: uploadedImages,
             inventoryStatus: 'available',
@@ -459,11 +448,6 @@ const updateProduct = async (
   const user = await User.isUserExistByEmail(email);
   if (!user) {
     throw new AppError('User not found', StatusCodes.FORBIDDEN);
-  }
-
-  const category = await Category.findById(payload.categoryId);
-  if (!category) {
-    throw new AppError('Category not found', StatusCodes.NOT_FOUND);
   }
 
   const product = await Product.findById(id);

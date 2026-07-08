@@ -1,11 +1,7 @@
 import { StatusCodes } from 'http-status-codes';
-import { Types } from 'mongoose';
 import AppError from '../../errors/AppError';
 import Product from '../product/product.model';
 import { User } from '../user/user.model';
-import Bid from '../bid/bid.model';
-import paymentService from '../payment/payment.service';
-import invoiceService from '../invoice/invoice.service';
 import Auction from './auction.model';
 import { AuctionStatus, IAuction } from './auction.interface';
 import { generateAuctionId } from '../../utils/product.utils';
@@ -107,7 +103,6 @@ const getActiveAuctions = async (query: Record<string, unknown>) => {
   const [auctions, total] = await Promise.all([
     Auction.find({ status: 'active' })
       .populate('products')
-      .populate('highestBid.bidder', 'firstName lastName email')
       .populate('winner', 'firstName lastName email')
       .sort({ startsAt: 1 })
       .skip(skip)
@@ -176,7 +171,6 @@ const getAllAuctions = async (query: Record<string, unknown>) => {
   const [auctions, total] = await Promise.all([
     Auction.find(filter)
       .populate('products')
-      .populate('highestBid.bidder', 'firstName lastName email')
       .populate('winner', 'firstName lastName email')
       .sort(sort)
       .skip(skip)
@@ -260,7 +254,7 @@ const auctionService = {
   getAuctionDetails,
   getUpcomingAuctions,
   updateAuction,
-  cancelAuction
+  cancelAuction,
 };
 
 export default auctionService;

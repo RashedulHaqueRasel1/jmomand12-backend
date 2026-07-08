@@ -6,10 +6,11 @@ export interface IProduct {
   inventoryId: string;
   title: string;
   description: string;
-  categoryId: Types.ObjectId;
+  category: string;
   condition: ProductCondition;
   reservePrice: number;
   retailPrice?: number;
+  day: string;
   inventoryStatus:
     | 'available'
     | 'auction_active'
@@ -35,7 +36,8 @@ export interface IProduct {
 export interface IBulkProductRow {
   title: string;
   description: string;
-  categoryId: string;
+  day: string;
+  category: string;
   condition: string;
   reservePrice: number;
   retailPrice?: number;

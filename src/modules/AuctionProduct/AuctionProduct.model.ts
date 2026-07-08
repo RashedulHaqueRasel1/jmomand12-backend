@@ -28,13 +28,13 @@ const highestBidSchema = new Schema(
 
 const auctionProductSchema = new Schema<IAuctionProduct>(
   {
-    auction: {
+    auctionId: {
       type: Schema.Types.ObjectId,
       ref: 'Auction',
       required: true,
       index: true,
     },
-    product: {
+    productId: {
       type: Schema.Types.ObjectId,
       ref: 'Product',
       required: true,
@@ -114,7 +114,7 @@ const auctionProductSchema = new Schema<IAuctionProduct>(
 );
 
 // Prevent the same product from being added to the same auction twice
-auctionProductSchema.index({ auction: 1, product: 1 }, { unique: true });
+auctionProductSchema.index({ auctionId: 1, productId: 1 }, { unique: true });
 
 const AuctionProduct = model<IAuctionProduct>('AuctionProduct', auctionProductSchema);
 

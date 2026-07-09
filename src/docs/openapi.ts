@@ -241,6 +241,10 @@ const openApiDocumentBase = {
                   firstName: { type: 'string', example: 'Javed' },
                   lastName: { type: 'string', example: 'Momand' },
                   phone: { type: 'string', example: '+15555555555' },
+                  street: { type: 'string', example: '123 Main St' },
+                  location: { type: 'string', example: 'Virginia' },
+                  postalCode: { type: 'string', example: '22030' },
+                  dateOfBirth: { type: 'string', format: 'date', example: '1990-01-01' },
                   image: { type: 'string', format: 'binary' },
                 },
               },
@@ -296,7 +300,7 @@ const openApiDocumentBase = {
             'multipart/form-data': {
               schema: {
                 type: 'object',
-                required: ['title', 'description', 'category', 'condition', 'reservePrice', 'images'],
+                required: ['title', 'description', 'category', 'condition', 'type', 'images'],
                 properties: {
                   title: { type: 'string', example: 'Fender Guitar' },
                   description: { type: 'string', example: 'Used guitar in good condition' },
@@ -306,8 +310,23 @@ const openApiDocumentBase = {
                     enum: ['new', 'open_box', 'like_new', 'used', 'damaged', 'for_parts'],
                     example: 'used',
                   },
-                  reservePrice: { type: 'number', example: 150 },
-                  retailPrice: { type: 'number', example: 499 },
+                  type: {
+                    type: 'string',
+                    enum: ['for_sale', 'for_auction'],
+                    example: 'for_auction',
+                    description: 'Product type: for_auction requires day + reservePrice; for_sale requires price + quantity',
+                  },
+                  day: { type: 'string', example: 'Monday', description: 'Required when type is for_auction' },
+                  reservePrice: { type: 'number', example: 150, description: 'Required when type is for_auction' },
+                  price: { type: 'number', example: 499, description: 'Required when type is for_sale' },
+                  quantity: { type: 'number', example: 10, description: 'Required when type is for_sale' },
+                  color: {
+                    type: 'array',
+                    items: { type: 'string' },
+                    example: ['Black', 'Blue'],
+                    description: 'Optional array of colors',
+                  },
+                  manufacturer: { type: 'string', example: 'Fender', description: 'Optional manufacturer name' },
                   images: {
                     type: 'array',
                     items: { type: 'string', format: 'binary' },
@@ -390,11 +409,28 @@ const openApiDocumentBase = {
               schema: {
                 type: 'object',
                 properties: {
-                  title: { type: 'string' },
-                  description: { type: 'string' },
-                  category: { type: 'string' },
-                  reservePrice: { type: 'number' },
-                  retailPrice: { type: 'number' },
+                  title: { type: 'string', example: 'Fender Guitar' },
+                  description: { type: 'string', example: 'Updated description' },
+                  category: { type: 'string', example: 'Music' },
+                  condition: {
+                    type: 'string',
+                    enum: ['new', 'open_box', 'like_new', 'used', 'damaged', 'for_parts'],
+                  },
+                  type: {
+                    type: 'string',
+                    enum: ['for_sale', 'for_auction'],
+                    description: 'Product type: for_auction requires day + reservePrice; for_sale requires price + quantity',
+                  },
+                  day: { type: 'string', example: 'Monday' },
+                  reservePrice: { type: 'number', example: 150 },
+                  price: { type: 'number', example: 499 },
+                  quantity: { type: 'number', example: 10 },
+                  color: { type: 'array', items: { type: 'string' }, example: ['Black'] },
+                  manufacturer: { type: 'string', example: 'Fender' },
+                  inventoryStatus: {
+                    type: 'string',
+                    enum: ['available', 'auction_active', 'auction_ended', 'winner_assigned', 'payment_pending', 'payment_completed', 'ready_for_pickup', 'pickup_scheduled', 'picked_up', 'completed', 'unsold', 'unavailable'],
+                  },
                   images: { type: 'array', items: { type: 'string', format: 'binary' } },
                 },
               },
@@ -491,8 +527,22 @@ const openApiDocumentBase = {
           content: json({
             products: ['productObjectId'],
             title: 'Electronics Auction',
-            startsAt: '2026-08-10T13:00:00.000Z',
-            endsAt: '2026-08-11T13:00:00.000Z',
+            description: 'Auction for electronic items',
+            auctionSchedule: {
+              startDate: '2026-08-10',
+              startTime: '13:00',
+              durationInDays: 1,
+            },
+            startingBid: 1,
+            bidIncrement: 5,
+            reservePrice: 150,
+            pickupSchedule: {
+              startDate: '2026-08-12',
+              endDate: '2026-08-15',
+              dailyStartTime: '09:00',
+              dailyEndTime: '17:00',
+              durationInDays: 3,
+            },
           }),
         },
         responses: {
@@ -550,7 +600,6 @@ const openApiDocumentBase = {
         requestBody: {
           required: true,
           content: json({
-            auctionId: 'auctionObjectId',
             auctionProductId: 'auctionProductObjectId',
             amount: 205,
           }),

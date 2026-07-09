@@ -52,14 +52,8 @@ const productSchema = new Schema<IProduct>(
       required: true,
       enum: ['new', 'open_box', 'like_new', 'used', 'damaged', 'for_parts'],
     },
-    day: { type: String, required: true, trim: true },
+    day: { type: String, trim: true },
     reservePrice: {
-      type: Number,
-      required: true,
-      min: 0,
-    },
-
-    retailPrice: {
       type: Number,
       min: 0,
     },
@@ -97,12 +91,27 @@ const productSchema = new Schema<IProduct>(
       default: 0,
       min: 0,
     },
-
+    type: {
+      type: String,
+      enum: ['for_sale', 'for_auction'],
+    },
     color: {
       type: [String],
       default: [],
     },
-
+    quantity: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    price: {
+      type: Number,
+      min: 1,
+    },
+    manufacturer: {
+      type: String,
+      trim: true,
+    },
     averageReview: {
       type: Number,
       default: 0,
@@ -115,6 +124,30 @@ const productSchema = new Schema<IProduct>(
     versionKey: false,
   },
 );
+
+productSchema.pre('validate', function (next) {
+  if (this.type === 'for_auction') {
+    if (!this.day) {
+      return next(new Error('Day is required for auction products'));
+    }
+
+    if (this.reservePrice == null) {
+      return next(new Error('Reserve price is required for auction products'));
+    }
+  }
+
+  if (this.type === 'for_sale') {
+    if (this.price == null) {
+      return next(new Error('Price is required for sale products'));
+    }
+
+    if (this.quantity == null || this.quantity <= 0) {
+      return next(new Error('Quantity is required for sale products'));
+    }
+  }
+
+  next();
+});
 
 const Product = model<IProduct>('Product', productSchema);
 export default Product;

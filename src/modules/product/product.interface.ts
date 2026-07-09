@@ -1,5 +1,3 @@
-import { Types } from 'mongoose';
-
 export type ProductCondition = 'new' | 'open_box' | 'like_new' | 'used' | 'damaged' | 'for_parts';
 
 export interface IProduct {
@@ -8,8 +6,7 @@ export interface IProduct {
   description: string;
   category: string;
   condition: ProductCondition;
-  reservePrice: number;
-  retailPrice?: number;
+  reservePrice?: number;
   day: string;
   inventoryStatus:
     | 'available'
@@ -29,6 +26,10 @@ export interface IProduct {
     url: string;
   }[];
   color: [string];
+  type: 'for_sale' | 'for_auction';
+  quantity?: number;
+  price?: number;
+  manufacturer?: string;
   totalReview: number;
   averageReview: number;
 }
@@ -40,9 +41,11 @@ export interface IBulkProductRow {
   category: string;
   condition: string;
   reservePrice: number;
-  retailPrice?: number;
   color: string[];
   imageFolder: string;
+  price?: number;
+  quantity: number;
+  manufacturer?: string;
 }
 
 export interface IBulkUploadSuccess {

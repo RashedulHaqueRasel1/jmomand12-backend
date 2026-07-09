@@ -1,8 +1,8 @@
+import { parse } from 'csv-parse/sync';
 import fs from 'fs';
 import path from 'path';
-import { parse } from 'csv-parse/sync';
-import { IBulkProductRow } from '../modules/product/product.interface';
 import Counter from '../modules/counter/counter.model';
+import { IBulkProductRow } from '../modules/product/product.interface';
 // import Counter from '../counter/counter.model';
 // import { IBulkProductRow } from './product.interface';
 
@@ -26,12 +26,15 @@ export const parseProductsCsv = (csvPath: string): Array<IBulkProductRow & { row
     row: i + 1,
     title: r.title,
     description: r.description,
-    categoryId: r.categoryId,
+    category: r.category,
     condition: r.condition,
     reservePrice: Number(r.reservePrice),
     retailPrice: r.retailPrice ? Number(r.retailPrice) : undefined,
     color: r.color ? r.color.split(',').map((c: string) => c.trim()) : [],
     imageFolder: r.imageFolder?.trim(),
+    day: r.day,
+    quantity: r.quantity ? Number(r.quantity) : 0,
+    manufacturer: r.manufacturer?.trim() || undefined,
   }));
 };
 
@@ -42,15 +45,12 @@ export const parseProductsCsv = (csvPath: string): Array<IBulkProductRow & { row
 export const validateProductRowShape = (row: IBulkProductRow & { row: number }): string | null => {
   if (!row.title) return 'Title is required';
   if (!row.description) return 'Description is required';
-  if (!row.categoryId) return 'categoryId is required';
+  if (!row.category) return 'Category is required';
   if (!row.condition || !ALLOWED_CONDITIONS.includes(row.condition)) {
     return `Invalid condition. Must be one of: ${ALLOWED_CONDITIONS.join(', ')}`;
   }
   if (!Number.isFinite(row.reservePrice) || row.reservePrice < 0) {
     return 'reservePrice must be a non-negative number';
-  }
-  if (row.retailPrice !== undefined && (!Number.isFinite(row.retailPrice) || row.retailPrice < 0)) {
-    return 'retailPrice must be a non-negative number';
   }
   if (!row.imageFolder) return 'imageFolder is required';
   return null;

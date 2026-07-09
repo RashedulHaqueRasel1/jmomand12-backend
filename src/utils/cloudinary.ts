@@ -1,7 +1,7 @@
-import { v2 as cloudinary } from "cloudinary";
-import fs from "fs";
-import config from "../config";
-import logger from "../logger";
+import { v2 as cloudinary } from 'cloudinary';
+import fs from 'fs';
+import config from '../config';
+import logger from '../logger';
 
 // configure Cloudinary
 cloudinary.config({
@@ -15,9 +15,8 @@ export const uploadToCloudinary = async (filePath: string, folder: string) => {
   try {
     const result = await cloudinary.uploader.upload(filePath, {
       folder,
-      resource_type: "auto",
+      resource_type: 'auto',
     });
-
 
     // delete local file after upload
     fs.unlinkSync(filePath);
@@ -27,8 +26,11 @@ export const uploadToCloudinary = async (filePath: string, folder: string) => {
       secure_url: result.secure_url,
     };
   } catch (error: any) {
-    logger.error("Cloudinary upload error:", error);
-    throw new Error("Failed to upload file to Cloudinary");
+    console.error('Cloudinary Error:', error);
+    console.error('Message:', error?.message);
+    console.error('Stack:', error?.stack);
+    logger.error({ error }, 'Cloudinary upload error');
+    throw new Error(error?.message || 'Failed to upload file to Cloudinary');
   }
 };
 
@@ -37,6 +39,6 @@ export const deleteFromCloudinary = async (publicId: string) => {
   try {
     await cloudinary.uploader.destroy(publicId);
   } catch (error) {
-    throw new Error("Failed to delete file from Cloudinary");
+    throw new Error('Failed to delete file from Cloudinary');
   }
 };

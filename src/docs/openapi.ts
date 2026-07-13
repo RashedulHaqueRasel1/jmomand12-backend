@@ -676,6 +676,59 @@ const openApiDocumentBase = {
         responses: { 200: success('Upcoming auctions fetched successfully') },
       },
     },
+    '/auctions/closing-soon': {
+      get: {
+        tags: ['Auctions'],
+        summary: 'Get active auctions ending within 3 days',
+        description:
+          'Returns currently active auctions that will close within the next 3 days. Each auction includes a computed timeRemaining field (seconds until endsAt) for accurate countdowns.',
+        parameters: [
+          { name: 'page', in: 'query', schema: { type: 'number', default: 1 } },
+          { name: 'limit', in: 'query', schema: { type: 'number', default: 10 } },
+        ],
+        responses: {
+          200: success('Closing soon auctions fetched successfully', {
+            meta: { page: 1, limit: 10, total: 3, totalPage: 1 },
+            data: [
+              {
+                auctionId: 'AUC-000042-07-26',
+                title: 'Electronics Flash Auction',
+                status: 'active',
+                startsAt: '2026-07-11T09:00:00.000Z',
+                endsAt: '2026-07-14T09:00:00.000Z',
+                timeRemaining: 86399,
+              },
+            ],
+          }),
+        },
+      },
+    },
+    '/auctions/closed': {
+      get: {
+        tags: ['Auctions'],
+        summary: 'Get ended auctions',
+        description:
+          'Returns auctions with status ended, sorted by most recently closed first.',
+        parameters: [
+          { name: 'page', in: 'query', schema: { type: 'number', default: 1 } },
+          { name: 'limit', in: 'query', schema: { type: 'number', default: 10 } },
+        ],
+        responses: {
+          200: success('Closed auctions fetched successfully', {
+            meta: { page: 1, limit: 10, total: 15, totalPage: 2 },
+            data: [
+              {
+                auctionId: 'AUC-000038-07-26',
+                title: 'Furniture Auction',
+                status: 'ended',
+                startsAt: '2026-07-01T09:00:00.000Z',
+                endsAt: '2026-07-08T09:00:00.000Z',
+              },
+            ],
+          }),
+        },
+      },
+    },
     '/auctions/{id}': {
       get: {
         tags: ['Auctions'],

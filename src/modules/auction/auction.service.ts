@@ -283,6 +283,86 @@ const getUpcomingAuctions = async (query: Record<string, unknown>) => {
   };
 };
 
+const getClosingSoonAuctions = async (query: Record<string, unknown>) => {
+  const { page = 1, limit = 10 } = query;
+
+  const pageNumber = Number(page);
+  const limitNumber = Number(limit);
+  const skip = (pageNumber - 1) * limitNumber;
+
+  const now = new Date();
+  const threeDaysLater = new Date(now);
+  threeDaysLater.setDate(threeDaysLater.getDate() + 3);
+
+  const filter = {
+    status: 'active',
+    endsAt: { $gt: now, $lte: threeDaysLater },
+  };
+
+  const [auctions, total] = await Promise.all([
+    Auction.find(filter)
+      .populate('products')
+      .populate('winner', 'firstName lastName email')
+      .sort({ endsAt: 1 })
+      .skip(skip)
+      .limit(limitNumber),
+
+    Auction.countDocuments(filter),
+  ]);
+
+  const data = auctions.map((auction) => {
+    const auctionObj = auction.toObject();
+    const timeRemaining = Math.max(
+      0,
+      Math.floor((new Date(auctionObj.endsAt).getTime() - now.getTime()) / 1000),
+    );
+    return { ...auctionObj, timeRemaining };
+  });
+
+  return {
+    meta: {
+      page: pageNumber,
+      limit: limitNumber,
+      total,
+      totalPage: Math.ceil(total / limitNumber),
+    },
+    data,
+  };
+};
+
+const getClosedAuctions = async (query: Record<string, unknown>) => {
+  const { page = 1, limit = 10 } = query;
+
+  const pageNumber = Number(page);
+  const limitNumber = Number(limit);
+  const skip = (pageNumber - 1) * limitNumber;
+
+  const filter = {
+    status: 'ended',
+  };
+
+  const [auctions, total] = await Promise.all([
+    Auction.find(filter)
+      .populate('products')
+      .populate('winner', 'firstName lastName email')
+      .sort({ endsAt: -1 })
+      .skip(skip)
+      .limit(limitNumber),
+
+    Auction.countDocuments(filter),
+  ]);
+
+  return {
+    meta: {
+      page: pageNumber,
+      limit: limitNumber,
+      total,
+      totalPage: Math.ceil(total / limitNumber),
+    },
+    data: auctions,
+  };
+};
+
 const updateAuction = async (id: string, data: Partial<IAuction>) => {};
 const cancelAuction = async (id: string) => {};
 
@@ -292,6 +372,8 @@ const auctionService = {
   getAllAuctions,
   getAuctionDetails,
   getUpcomingAuctions,
+  getClosingSoonAuctions,
+  getClosedAuctions,
   updateAuction,
   cancelAuction,
 };

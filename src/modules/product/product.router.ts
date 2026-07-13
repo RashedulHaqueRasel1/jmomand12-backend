@@ -23,7 +23,7 @@ router.post(
 router.get('/', productController.getAllProducts);
 router.get(
   '/inventory',
-  auth(USER_ROLE.ADMIN),
+  auth(USER_ROLE.ADMIN, USER_ROLE.USER),
   productController.getInventoryProducts,
 );
 router.get(

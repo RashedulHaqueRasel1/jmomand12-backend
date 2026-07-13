@@ -126,16 +126,6 @@ const productSchema = new Schema<IProduct>(
 );
 
 productSchema.pre('validate', function (next) {
-  if (this.type === 'for_auction') {
-    if (!this.day) {
-      return next(new Error('Day is required for auction products'));
-    }
-
-    if (this.reservePrice == null) {
-      return next(new Error('Reserve price is required for auction products'));
-    }
-  }
-
   if (this.type === 'for_sale') {
     if (this.price == null) {
       return next(new Error('Price is required for sale products'));

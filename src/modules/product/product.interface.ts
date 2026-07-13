@@ -7,7 +7,7 @@ export interface IProduct {
   category: string;
   condition: ProductCondition;
   reservePrice?: number;
-  day: string;
+  day?: string;
   inventoryStatus:
     | 'available'
     | 'auction_active'

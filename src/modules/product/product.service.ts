@@ -52,16 +52,7 @@ const createProduct = async (
     throw new AppError('Product type is required', StatusCodes.BAD_REQUEST);
   }
 
-  // Auction Validation
-  if (payload.type === 'for_auction') {
-    if (!payload.day) {
-      throw new AppError('Auction day is required', StatusCodes.BAD_REQUEST);
-    }
 
-    if (payload.reservePrice == null) {
-      throw new AppError('Reserve price is required', StatusCodes.BAD_REQUEST);
-    }
-  }
 
   // Sale Validation
   if (payload.type === 'for_sale') {

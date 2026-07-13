@@ -559,11 +559,12 @@ const getAllProducts = async (query: Record<string, unknown>) => {
     category,
     condition,
     inventoryStatus,
+    type,
+    fields,
     sortBy = 'createdAt',
     sortOrder = 'desc',
     page = 1,
     limit = 10,
-    fields,
   } = query;
 
   const filter: any = {};
@@ -832,6 +833,7 @@ const getInventoryProducts = async (query: Record<string, unknown>) => {
     category,
     condition,
     inventoryStatus,
+    productType,
     sortBy = 'createdAt',
     sortOrder = 'desc',
     page = 1,
@@ -859,6 +861,10 @@ const getInventoryProducts = async (query: Record<string, unknown>) => {
     filter.inventoryStatus = inventoryStatus;
   }
 
+  if (productType) {
+    filter.type = productType;
+  }
+
   const pageNumber = Number(page);
   const limitNumber = Number(limit);
   const skip = (pageNumber - 1) * limitNumber;
@@ -871,7 +877,7 @@ const getInventoryProducts = async (query: Record<string, unknown>) => {
     .sort(sort)
     .skip(skip)
     .limit(limitNumber)
-    .select('inventoryId title category condition quantity');
+    .select('inventoryId title category condition quantity type');
 
   const total = await Product.countDocuments(filter);
 

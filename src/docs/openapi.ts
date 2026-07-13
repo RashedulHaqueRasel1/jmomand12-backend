@@ -344,10 +344,13 @@ const openApiDocumentBase = {
         tags: ['Products'],
         summary: 'List products with search, filter, and pagination',
         parameters: [
-          { name: 'searchTerm', in: 'query', schema: { type: 'string' } },
-          { name: 'category', in: 'query', schema: { type: 'string' } },
-          { name: 'condition', in: 'query', schema: { type: 'string' } },
-          { name: 'inventoryStatus', in: 'query', schema: { type: 'string' } },
+          { name: 'searchTerm', in: 'query', schema: { type: 'string' }, description: 'Search by title, description, or category (case-insensitive)' },
+          { name: 'category', in: 'query', schema: { type: 'string' }, description: 'Filter by exact category name' },
+          { name: 'condition', in: 'query', schema: { type: 'string', description: 'Filter by product condition' } },
+          { name: 'inventoryStatus', in: 'query', schema: { type: 'string' }, description: 'Filter by inventory status' },
+          { name: 'fields', in: 'query', schema: { type: 'string' }, description: 'Comma-separated list of fields to include in response (e.g. title,category,price)' },
+          { name: 'sortBy', in: 'query', schema: { type: 'string', default: 'createdAt' }, description: 'Field to sort by' },
+          { name: 'sortOrder', in: 'query', schema: { type: 'string', enum: ['asc', 'desc'], default: 'desc' }, description: 'Sort direction' },
           { name: 'page', in: 'query', schema: { type: 'number', default: 1 } },
           { name: 'limit', in: 'query', schema: { type: 'number', default: 10 } },
         ],
@@ -408,10 +411,11 @@ const openApiDocumentBase = {
         summary: 'Admin: list all inventory products (for_sale and for_auction)',
         description:
           'Returns a paginated list of all products across both sale and auction types. ' +
-          'Each item includes inventoryId, title, category, condition, and quantity. ' +
-          'Use this endpoint for a concise inventory overview without images, pricing, or auction details.',
+          'Each item includes inventoryId, title, category, condition, quantity, and type. ' +
+          'Use the type query parameter to filter by for_sale or for_auction.',
         parameters: [
           { name: 'searchTerm', in: 'query', schema: { type: 'string' }, description: 'Search by title or category (case-insensitive)' },
+          { name: 'type', in: 'query', schema: { type: 'string', enum: ['for_sale', 'for_auction'] }, description: 'Filter by product type' },
           { name: 'category', in: 'query', schema: { type: 'string' }, description: 'Filter by exact category name' },
           { name: 'condition', in: 'query', schema: { type: 'string', enum: ['new', 'open_box', 'like_new', 'used', 'damaged', 'for_parts'] }, description: 'Filter by product condition' },
           { name: 'inventoryStatus', in: 'query', schema: { type: 'string' }, description: 'Filter by inventory status (e.g. available, auction_active)' },
@@ -430,6 +434,7 @@ const openApiDocumentBase = {
                 category: 'Mobile',
                 condition: 'like_new',
                 quantity: 3,
+                type: 'for_sale',
               },
             ],
             { auctions: '/api/v1/products/auctions', allProducts: '/api/v1/products' },

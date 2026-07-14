@@ -232,15 +232,7 @@ const getAllAuctions = async (query: Record<string, unknown>) => {
 const getAuctionDetails = async (id: string) => {
   const auction = await Auction.findById(id)
     .populate('products')
-    .populate('highestBid.bidder', 'firstName lastName email profileImage')
-    .populate('winner', 'firstName lastName email profileImage')
-    .populate({
-      path: 'highestBid.bid',
-      populate: {
-        path: 'bidder',
-        select: 'firstName lastName email',
-      },
-    });
+    .populate('winner', 'firstName lastName email profileImage');
 
   if (!auction) {
     throw new AppError('Auction not found', StatusCodes.NOT_FOUND);

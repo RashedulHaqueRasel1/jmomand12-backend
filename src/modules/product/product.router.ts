@@ -31,6 +31,7 @@ router.post(
 
 router.get('/', productController.getAllProducts);
 router.get('/browse', productController.browseProducts);
+router.get('/categories', productController.getAllCategory);
 router.get(
   '/inventory',
   auth(USER_ROLE.ADMIN, USER_ROLE.USER),

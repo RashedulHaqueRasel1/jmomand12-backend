@@ -1055,6 +1055,33 @@ const browseProducts = async (query: Record<string, unknown>) => {
   };
 };
 
+const getAllCategory = async () => {
+  const categories = await Product.aggregate([
+    {
+      $group: {
+        _id: '$category',
+        categoryImage: {
+          $first: '$categoryImage',
+        },
+      },
+    },
+    {
+      $project: {
+        _id: 0,
+        category: '$_id',
+        categoryImage: 1,
+      },
+    },
+    {
+      $sort: {
+        category: 1,
+      },
+    },
+  ]);
+
+  return categories;
+};
+
 const productService = {
   createProduct,
   bulkUploadProducts,
@@ -1066,6 +1093,7 @@ const productService = {
   browseProducts,
   updateProduct,
   deleteProduct,
+  getAllCategory,
 };
 
 export default productService;

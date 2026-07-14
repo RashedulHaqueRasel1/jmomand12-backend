@@ -139,6 +139,17 @@ const browseProducts = catchAsync(async (req, res) => {
   });
 });
 
+const getAllCategory = catchAsync(async (req, res) => {
+  const result = await productService.getAllCategory();
+
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: 'Categories fetched successfully',
+    data: result,
+  });
+});
+
 const productController = {
   creteNewProduct,
   productBulkUpload,
@@ -150,6 +161,7 @@ const productController = {
   browseProducts,
   updateProduct,
   deleteProduct,
+  getAllCategory,
 };
 
 export default productController;

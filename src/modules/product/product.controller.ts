@@ -126,6 +126,18 @@ const getAuctionProducts = catchAsync(async (req, res) => {
   });
 });
 
+const browseProducts = catchAsync(async (req, res) => {
+  const result = await productService.browseProducts(req.query);
+
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: 'Products browsed successfully',
+    meta: result.meta,
+    data: result.data,
+  });
+});
+
 const productController = {
   creteNewProduct,
   productBulkUpload,
@@ -134,6 +146,7 @@ const productController = {
   getInventoryProducts,
   getAuctionProducts,
   getInventoryMonitoring,
+  browseProducts,
   updateProduct,
   deleteProduct,
 };

@@ -1052,6 +1052,166 @@ const getAuctionProducts = async (query: Record<string, unknown>) => {
   };
 };
 
+const browseProducts = async (query: Record<string, unknown>) => {
+  const {
+    searchTerm,
+    category,
+    condition,
+    type,
+    minPrice,
+    maxPrice,
+    priceRange,
+    status,
+    minBid,
+    maxBid,
+    sortBy = 'createdAt',
+    sortOrder = 'desc',
+    page = 1,
+    limit = 10,
+  } = query;
+
+  const filter: any = {};
+
+  // Search across title, description, category
+  if (searchTerm && typeof searchTerm === 'string') {
+    filter.$or = [
+      { title: { $regex: searchTerm, $options: 'i' } },
+      { description: { $regex: searchTerm, $options: 'i' } },
+      { category: { $regex: searchTerm, $options: 'i' } },
+    ];
+  }
+
+  // Category filter
+  if (category && typeof category === 'string') {
+    filter.category = category;
+  }
+
+  // Condition filter (multi-select: comma-separated)
+  if (condition && typeof condition === 'string') {
+    const conditions = condition.split(',').map((c) => c.trim());
+    filter.condition = conditions.length === 1 ? conditions[0] : { $in: conditions };
+  }
+
+  // Type filter
+  if (type && typeof type === 'string') {
+    filter.type = type;
+  }
+
+  // Price Range Filter
+  let resolvedMinPrice = minPrice != null ? Number(minPrice) : undefined;
+  let resolvedMaxPrice = maxPrice != null ? Number(maxPrice) : undefined;
+
+  if (priceRange && typeof priceRange === 'string') {
+    const range = PRICE_RANGES[priceRange];
+    if (range) {
+      resolvedMinPrice = range.min;
+      resolvedMaxPrice = range.max;
+    }
+  }
+
+  if (resolvedMinPrice != null || resolvedMaxPrice != null) {
+    filter.price = {};
+    if (resolvedMinPrice != null) {
+      filter.price.$gte = resolvedMinPrice;
+    }
+    if (resolvedMaxPrice != null) {
+      filter.price.$lte = resolvedMaxPrice;
+    }
+  }
+
+  // Status Filter (multi-select: comma-separated, cross-collection with Auctions)
+  if (status && typeof status === 'string') {
+    const statuses = status.split(',').map((s) => s.trim());
+    const buyNowSelected = statuses.includes('buy_now');
+    const auctionStatuses = statuses.filter((s): s is 'live_auction' | 'ending_soon' | 'upcoming_auction' =>
+      AUCTION_PRODUCT_STATUSES.includes(s as any),
+    );
+
+    // Collect product IDs from auction statuses
+    const auctionProductIds: any[] = [];
+
+    for (const auctionStatus of auctionStatuses) {
+      const now = new Date();
+      let auctionFilter: any = {};
+
+      if (auctionStatus === 'live_auction') {
+        auctionFilter = { status: 'active' };
+      } else if (auctionStatus === 'ending_soon') {
+        const oneDayFromNow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+        auctionFilter = { status: 'active', endsAt: { $lte: oneDayFromNow } };
+      } else if (auctionStatus === 'upcoming_auction') {
+        auctionFilter = { status: 'upcoming' };
+      }
+
+      const ids = await Auction.distinct('products', auctionFilter);
+      auctionProductIds.push(...ids);
+    }
+
+    if (buyNowSelected && auctionProductIds.length > 0) {
+      // Mix of buy_now and auction statuses: use $or
+      filter.$or = [
+        ...(filter.$or || []),
+        { type: 'for_sale', inventoryStatus: 'available' },
+        { _id: { $in: auctionProductIds } },
+      ];
+    } else if (buyNowSelected) {
+      filter.type = 'for_sale';
+      filter.inventoryStatus = 'available';
+    } else if (auctionProductIds.length > 0) {
+      filter._id = { $in: auctionProductIds };
+    }
+  }
+
+  // Current Bid Filter (cross-collection with AuctionProduct)
+  if (minBid != null || maxBid != null) {
+    const bidFilter: any = { 'highestBid.amount': {} };
+    if (minBid != null) {
+      bidFilter['highestBid.amount'].$gte = Number(minBid);
+    }
+    if (maxBid != null) {
+      bidFilter['highestBid.amount'].$lte = Number(maxBid);
+    }
+
+    const bidProductIds = await AuctionProduct.distinct('product', bidFilter);
+
+    if (filter._id?.$in) {
+      // Intersect with existing _id filter
+      const existingIds = filter._id.$in;
+      filter._id = { $in: existingIds.filter((id: any) => bidProductIds.some((bidId: any) => bidId.equals(id))) };
+    } else {
+      filter._id = { $in: bidProductIds };
+    }
+  }
+
+  // Pagination
+  const pageNumber = Number(page);
+  const limitNumber = Number(limit);
+  const skip = (pageNumber - 1) * limitNumber;
+
+  // Sorting
+  const sort: Record<string, 1 | -1> = {
+    [sortBy as string]: sortOrder === 'asc' ? 1 : -1,
+  };
+
+  const products = await Product.find(filter)
+    .populate({ path: 'categoryId', strictPopulate: false })
+    .sort(sort)
+    .skip(skip)
+    .limit(limitNumber);
+
+  const total = await Product.countDocuments(filter);
+
+  return {
+    meta: {
+      page: pageNumber,
+      limit: limitNumber,
+      total,
+      totalPage: Math.ceil(total / limitNumber),
+    },
+    data: products,
+  };
+};
+
 const productService = {
   createProduct,
   bulkUploadProducts,
@@ -1060,6 +1220,7 @@ const productService = {
   getInventoryProducts,
   getAuctionProducts,
   getInventoryMonitoring,
+  browseProducts,
   updateProduct,
   deleteProduct,
 };

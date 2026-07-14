@@ -362,6 +362,56 @@ const openApiDocumentBase = {
         responses: { 200: success('Products fetched successfully') },
       },
     },
+    '/products/browse': {
+      get: {
+        tags: ['Products'],
+        summary: 'Browse and filter products with multi-select and current bid support',
+        description:
+          'Public endpoint for browsing products with advanced filtering. Supports multi-select for condition and status, ' +
+          'price range filtering, and current bid range filtering via AuctionProduct join. ' +
+          'Status and condition accept comma-separated values for multi-select.',
+        parameters: [
+          { name: 'searchTerm', in: 'query', schema: { type: 'string' }, description: 'Search by title, description, or category (case-insensitive)' },
+          { name: 'category', in: 'query', schema: { type: 'string' }, description: 'Filter by exact category name' },
+          { name: 'condition', in: 'query', schema: { type: 'string' }, description: 'Filter by condition. Comma-separated for multi-select (e.g. brand_new,salvage)' },
+          { name: 'type', in: 'query', schema: { type: 'string', enum: ['for_sale', 'for_auction'] }, description: 'Filter by product type' },
+          { name: 'priceRange', in: 'query', schema: { type: 'string', enum: ['under_100', '100_500', '500_1000', '1000_5000', '5000_plus'] }, description: 'Predefined price range bucket' },
+          { name: 'minPrice', in: 'query', schema: { type: 'number' }, description: 'Minimum retail price' },
+          { name: 'maxPrice', in: 'query', schema: { type: 'number' }, description: 'Maximum retail price' },
+          { name: 'status', in: 'query', schema: { type: 'string', enum: ['buy_now', 'live_auction', 'ending_soon', 'upcoming_auction'] }, description: 'Auction status filter. Comma-separated for multi-select (e.g. live_auction,ending_soon)' },
+          { name: 'minBid', in: 'query', schema: { type: 'number' }, description: 'Minimum current bid amount' },
+          { name: 'maxBid', in: 'query', schema: { type: 'number' }, description: 'Maximum current bid amount' },
+          { name: 'sortBy', in: 'query', schema: { type: 'string', default: 'createdAt' }, description: 'Field to sort by' },
+          { name: 'sortOrder', in: 'query', schema: { type: 'string', enum: ['asc', 'desc'], default: 'desc' }, description: 'Sort direction' },
+          { name: 'page', in: 'query', schema: { type: 'number', default: 1 } },
+          { name: 'limit', in: 'query', schema: { type: 'number', default: 10 } },
+        ],
+        responses: {
+          200: success(
+            'Products browsed successfully',
+            {
+              meta: { page: 1, limit: 10, total: 50, totalPage: 5 },
+              data: [
+                {
+                  inventoryId: 'PRD-000134-07-26',
+                  title: 'Samsung Galaxy S24',
+                  description: 'Unlocked Samsung Galaxy S24, 128GB, phantom black',
+                  category: 'Mobile',
+                  condition: 'like_new_open_box',
+                  images: [{ public_id: 'products/galaxy-s24_abc', url: 'https://res.cloudinary.com/demo/image/upload/v1/products/galaxy-s24_abc.jpg' }],
+                  color: ['Black', 'Green'],
+                  type: 'for_sale',
+                  quantity: 3,
+                  price: 599,
+                  manufacturer: 'Samsung',
+                  inventoryStatus: 'available',
+                },
+              ],
+            },
+          ),
+        },
+      },
+    },
     '/products/bulk': {
       post: {
         tags: ['Products'],

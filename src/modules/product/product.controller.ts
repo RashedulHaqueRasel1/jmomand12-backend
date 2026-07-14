@@ -5,12 +5,13 @@ import productService from './product.service';
 
 const creteNewProduct = catchAsync(async (req, res) => {
   const { email } = req.user;
-  const files = req.files;
-  const result = await productService.createProduct(
-    req.body,
-    email,
-    files as Express.Multer.File[],
-  );
+
+  const files = req.files as {
+    images?: Express.Multer.File[];
+    categoryImage?: Express.Multer.File[];
+  };
+
+  const result = await productService.createProduct(req.body, email, files);
 
   sendResponse(res, {
     statusCode: StatusCodes.OK,
@@ -138,6 +139,17 @@ const browseProducts = catchAsync(async (req, res) => {
   });
 });
 
+const getAllCategory = catchAsync(async (req, res) => {
+  const result = await productService.getAllCategory();
+
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: 'Categories fetched successfully',
+    data: result,
+  });
+});
+
 const productController = {
   creteNewProduct,
   productBulkUpload,
@@ -149,6 +161,7 @@ const productController = {
   browseProducts,
   updateProduct,
   deleteProduct,
+  getAllCategory,
 };
 
 export default productController;

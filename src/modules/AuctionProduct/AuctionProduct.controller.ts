@@ -14,7 +14,17 @@ const getProductsByAuctionId = catchAsync(async (req, res) => {
   });
 });
 
-const getSingleAuctionProduct = catchAsync(async (req, res) => {});
+const getSingleAuctionProduct = catchAsync(async (req, res) => {
+  const { auctionProductId } = req.params;
+  const result = await auctionProductService.getSingleAuctionProduct(auctionProductId as string);
+
+  sendResponse(res, {
+    statusCode: 200,
+    success: true,
+    message: 'Auction product retrieved successfully',
+    data: result,
+  });
+});
 
 const auctionProductController = {
   getProductsByAuctionId,

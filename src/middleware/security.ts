@@ -4,6 +4,7 @@ import express, { Application } from "express";
 import rateLimit from "express-rate-limit";
 import helmet from "helmet";
 import hpp from "hpp";
+import config from "../config";
 
 // Global rate limiter
 const globalLimiter = rateLimit({
@@ -23,10 +24,26 @@ export const loginLimiter = rateLimit({
   message: "Too many login attempts, try again later.",
 });
 
-// CORS options
-const corsOptions = {
-  origin: ["http://localhost:3000", "http://localhost:3001"],
-  methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE"],
+const allowedOrigins = Array.from(
+  new Set(
+    [
+      config.app.frontendUrl,
+      "http://localhost:3000",
+      "http://localhost:3001",
+    ].filter(Boolean),
+  ),
+);
+
+const corsOptions: cors.CorsOptions = {
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+      return;
+    }
+
+    callback(new Error(`CORS blocked for origin: ${origin}`));
+  },
+  methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
   credentials: true,
 };
 export const applySecurity = (app: Application) => {

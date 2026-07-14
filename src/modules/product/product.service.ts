@@ -18,9 +18,21 @@ import {
   validateProductRowShape,
 } from '../../utils/product.utils';
 import { User } from '../user/user.model';
+import Auction from '../auction/auction.model';
 import AuctionProduct from '../AuctionProduct/AuctionProduct.model';
+import Category from '../category/category.model';
 import { IBulkProductRow, IBulkUploadResult, IProduct } from './product.interface';
 import Product from './product.model';
+
+const PRICE_RANGES: Record<string, { min?: number; max?: number }> = {
+  under_100: { min: 0, max: 100 },
+  '100_500': { min: 100, max: 500 },
+  '500_1000': { min: 500, max: 1000 },
+  '1000_5000': { min: 1000, max: 5000 },
+  '5000_plus': { min: 5000 },
+};
+
+const AUCTION_PRODUCT_STATUSES = ['live_auction', 'ending_soon', 'upcoming_auction'] as const;
 
 const generateInventoryId = async () => {
   const year = new Date().getFullYear();
@@ -77,10 +89,24 @@ const createProduct = async (
     }),
   );
 
+  // Auto-populate categoryImage from Category
+  let categoryImage: { public_id: string; url: string } | undefined;
+
+  if (payload.category) {
+    const categoryDoc = await Category.findOne({ name: payload.category });
+    if (categoryDoc?.image) {
+      categoryImage = {
+        public_id: categoryDoc.image.public_id,
+        url: categoryDoc.image.url,
+      };
+    }
+  }
+
   const productData: Partial<IProduct> = {
     ...payload,
     inventoryId: payload.inventoryId || (await generateInventoryIdsBatch(1))[0],
     images: uploadedImages,
+    categoryImage,
     inventoryStatus: 'available',
     totalReview: 0,
     averageReview: 0,
@@ -561,6 +587,10 @@ const getAllProducts = async (query: Record<string, unknown>) => {
     inventoryStatus,
     type,
     fields,
+    minPrice,
+    maxPrice,
+    priceRange,
+    status,
     sortBy = 'createdAt',
     sortOrder = 'desc',
     page = 1,
@@ -606,6 +636,56 @@ const getAllProducts = async (query: Record<string, unknown>) => {
   // Inventory Filter
   if (inventoryStatus) {
     filter.inventoryStatus = inventoryStatus;
+  }
+
+  // Type Filter
+  if (type) {
+    filter.type = type;
+  }
+
+  // Price Range Filter
+  let resolvedMinPrice = minPrice != null ? Number(minPrice) : undefined;
+  let resolvedMaxPrice = maxPrice != null ? Number(maxPrice) : undefined;
+
+  if (priceRange && typeof priceRange === 'string') {
+    const range = PRICE_RANGES[priceRange];
+    if (range) {
+      resolvedMinPrice = range.min;
+      resolvedMaxPrice = range.max;
+    }
+  }
+
+  if (resolvedMinPrice != null || resolvedMaxPrice != null) {
+    filter.price = {};
+    if (resolvedMinPrice != null) {
+      filter.price.$gte = resolvedMinPrice;
+    }
+    if (resolvedMaxPrice != null) {
+      filter.price.$lte = resolvedMaxPrice;
+    }
+  }
+
+  // Status Filter (cross-collection with Auctions)
+  if (status && typeof status === 'string') {
+    if (status === 'buy_now') {
+      filter.type = 'for_sale';
+      filter.inventoryStatus = 'available';
+    } else if (AUCTION_PRODUCT_STATUSES.includes(status as any)) {
+      const now = new Date();
+      let auctionFilter: any = {};
+
+      if (status === 'live_auction') {
+        auctionFilter = { status: 'active' };
+      } else if (status === 'ending_soon') {
+        const oneDayFromNow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+        auctionFilter = { status: 'active', endsAt: { $lte: oneDayFromNow } };
+      } else if (status === 'upcoming_auction') {
+        auctionFilter = { status: 'upcoming' };
+      }
+
+      const auctionProductIds = await Auction.distinct('products', auctionFilter);
+      filter._id = { $in: auctionProductIds };
+    }
   }
 
   // Pagination
@@ -790,6 +870,17 @@ const updateProduct = async (
     }
 
     payload.images = uploadedImages;
+  }
+
+  // Auto-populate categoryImage when category changes
+  if (payload.category) {
+    const categoryDoc = await Category.findOne({ name: payload.category });
+    if (categoryDoc?.image) {
+      payload.categoryImage = {
+        public_id: categoryDoc.image.public_id,
+        url: categoryDoc.image.url,
+      };
+    }
   }
 
   // prevent unwanted update

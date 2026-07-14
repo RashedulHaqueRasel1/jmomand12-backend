@@ -307,7 +307,7 @@ const openApiDocumentBase = {
                   category: { type: 'string', example: 'Music' },
                   condition: {
                     type: 'string',
-                    enum: ['new', 'open_box', 'like_new', 'used', 'damaged', 'for_parts'],
+                    enum: ['new', 'open_box', 'like_new', 'used', 'damaged', 'for_parts', 'brand_new', 'like_new_open_box', 'scratch_and_dent', 'salvage'],
                     example: 'used',
                   },
                   type: {
@@ -346,8 +346,13 @@ const openApiDocumentBase = {
         parameters: [
           { name: 'searchTerm', in: 'query', schema: { type: 'string' }, description: 'Search by title, description, or category (case-insensitive)' },
           { name: 'category', in: 'query', schema: { type: 'string' }, description: 'Filter by exact category name' },
-          { name: 'condition', in: 'query', schema: { type: 'string', description: 'Filter by product condition' } },
+          { name: 'condition', in: 'query', schema: { type: 'string', enum: ['new', 'open_box', 'like_new', 'used', 'damaged', 'for_parts', 'brand_new', 'like_new_open_box', 'scratch_and_dent', 'salvage'] }, description: 'Filter by product condition' },
           { name: 'inventoryStatus', in: 'query', schema: { type: 'string' }, description: 'Filter by inventory status' },
+          { name: 'type', in: 'query', schema: { type: 'string', enum: ['for_sale', 'for_auction'] }, description: 'Filter by product type' },
+          { name: 'minPrice', in: 'query', schema: { type: 'number' }, description: 'Minimum price filter' },
+          { name: 'maxPrice', in: 'query', schema: { type: 'number' }, description: 'Maximum price filter' },
+          { name: 'priceRange', in: 'query', schema: { type: 'string', enum: ['under_100', '100_500', '500_1000', '1000_5000', '5000_plus'] }, description: 'Predefined price range bucket' },
+          { name: 'status', in: 'query', schema: { type: 'string', enum: ['buy_now', 'live_auction', 'ending_soon', 'upcoming_auction'] }, description: 'Cross-collection auction status filter' },
           { name: 'fields', in: 'query', schema: { type: 'string' }, description: 'Comma-separated list of fields to include in response (e.g. title,category,price)' },
           { name: 'sortBy', in: 'query', schema: { type: 'string', default: 'createdAt' }, description: 'Field to sort by' },
           { name: 'sortOrder', in: 'query', schema: { type: 'string', enum: ['asc', 'desc'], default: 'desc' }, description: 'Sort direction' },
@@ -414,9 +419,9 @@ const openApiDocumentBase = {
           'Use the type query parameter to filter by for_sale or for_auction.',
         parameters: [
           { name: 'searchTerm', in: 'query', schema: { type: 'string' }, description: 'Search by title or category (case-insensitive)' },
-          { name: 'type', in: 'query', schema: { type: 'string', enum: ['for_sale', 'for_auction'] }, description: 'Filter by product type' },
+          { name: 'productType', in: 'query', schema: { type: 'string', enum: ['for_sale', 'for_auction'] }, description: 'Filter by product type' },
           { name: 'category', in: 'query', schema: { type: 'string' }, description: 'Filter by exact category name' },
-          { name: 'condition', in: 'query', schema: { type: 'string', enum: ['new', 'open_box', 'like_new', 'used', 'damaged', 'for_parts'] }, description: 'Filter by product condition' },
+          { name: 'condition', in: 'query', schema: { type: 'string', enum: ['new', 'open_box', 'like_new', 'used', 'damaged', 'for_parts', 'brand_new', 'like_new_open_box', 'scratch_and_dent', 'salvage'] }, description: 'Filter by product condition' },
           { name: 'inventoryStatus', in: 'query', schema: { type: 'string' }, description: 'Filter by inventory status (e.g. available, auction_active)' },
           { name: 'sortBy', in: 'query', schema: { type: 'string', default: 'createdAt' }, description: 'Field to sort by' },
           { name: 'sortOrder', in: 'query', schema: { type: 'string', enum: ['asc', 'desc'], default: 'desc' }, description: 'Sort direction' },
@@ -459,7 +464,7 @@ const openApiDocumentBase = {
         parameters: [
           { name: 'searchTerm', in: 'query', schema: { type: 'string' }, description: 'Search by title or category (case-insensitive)' },
           { name: 'category', in: 'query', schema: { type: 'string' }, description: 'Filter by exact category name' },
-          { name: 'condition', in: 'query', schema: { type: 'string', enum: ['new', 'open_box', 'like_new', 'used', 'damaged', 'for_parts'] }, description: 'Filter by product condition' },
+          { name: 'condition', in: 'query', schema: { type: 'string', enum: ['new', 'open_box', 'like_new', 'used', 'damaged', 'for_parts', 'brand_new', 'like_new_open_box', 'scratch_and_dent', 'salvage'] }, description: 'Filter by product condition' },
           { name: 'inventoryStatus', in: 'query', schema: { type: 'string' }, description: 'Filter by inventory status (e.g. available, auction_active)' },
           { name: 'sortBy', in: 'query', schema: { type: 'string', default: 'createdAt' }, description: 'Field to sort by' },
           { name: 'sortOrder', in: 'query', schema: { type: 'string', enum: ['asc', 'desc'], default: 'desc' }, description: 'Sort direction' },
@@ -491,7 +496,7 @@ const openApiDocumentBase = {
         parameters: [
           { name: 'inventoryStatus', in: 'query', schema: { type: 'string' } },
           { name: 'category', in: 'query', schema: { type: 'string' } },
-          { name: 'searchTerm', in: 'query', schema: { type: 'string' } },
+          { name: 'searchTerm', in: 'query', schema: { type: 'string' }, description: 'Search by title, inventoryId, or category (case-insensitive)' },
         ],
         responses: { 200: success('Inventory monitoring fetched successfully') },
       },
@@ -522,7 +527,7 @@ const openApiDocumentBase = {
                   category: { type: 'string', example: 'Music' },
                   condition: {
                     type: 'string',
-                    enum: ['new', 'open_box', 'like_new', 'used', 'damaged', 'for_parts'],
+                    enum: ['new', 'open_box', 'like_new', 'used', 'damaged', 'for_parts', 'brand_new', 'like_new_open_box', 'scratch_and_dent', 'salvage'],
                   },
                   type: {
                     type: 'string',
@@ -666,6 +671,9 @@ const openApiDocumentBase = {
         summary: 'List all auctions with optional status filter and pagination',
         parameters: [
           { name: 'status', in: 'query', schema: { type: 'string' } },
+          { name: 'searchTerm', in: 'query', schema: { type: 'string' }, description: 'Search by auctionId or title (case-insensitive)' },
+          { name: 'sortBy', in: 'query', schema: { type: 'string', default: 'startsAt' }, description: 'Field to sort by' },
+          { name: 'sortOrder', in: 'query', schema: { type: 'string', enum: ['asc', 'desc'], default: 'desc' }, description: 'Sort direction' },
           { name: 'page', in: 'query', schema: { type: 'number', default: 1 } },
           { name: 'limit', in: 'query', schema: { type: 'number', default: 10 } },
         ],
@@ -676,6 +684,10 @@ const openApiDocumentBase = {
       get: {
         tags: ['Auctions'],
         summary: 'Get currently active auctions',
+        parameters: [
+          { name: 'page', in: 'query', schema: { type: 'number', default: 1 } },
+          { name: 'limit', in: 'query', schema: { type: 'number', default: 10 } },
+        ],
         responses: { 200: success('Active auctions fetched successfully') },
       },
     },
@@ -683,6 +695,10 @@ const openApiDocumentBase = {
       get: {
         tags: ['Auctions'],
         summary: 'Get upcoming auctions',
+        parameters: [
+          { name: 'page', in: 'query', schema: { type: 'number', default: 1 } },
+          { name: 'limit', in: 'query', schema: { type: 'number', default: 10 } },
+        ],
         responses: { 200: success('Upcoming auctions fetched successfully') },
       },
     },
@@ -941,7 +957,7 @@ const openApiDocumentBase = {
         summary: 'Admin: complete warehouse handover by pickup code',
         requestBody: {
           required: true,
-          content: json({ pickupCode: 'A1B2C3D4', notes: 'Customer picked up all items.' }),
+          content: json({ appointmentId: 'pickupAppointmentObjectId', pickupCode: 'A1B2C3D4', notes: 'Customer picked up all items.' }),
         },
         responses: { 200: success('Pickup completed successfully') },
       },

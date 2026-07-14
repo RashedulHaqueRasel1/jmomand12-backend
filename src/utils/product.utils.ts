@@ -6,7 +6,18 @@ import { IBulkProductRow } from '../modules/product/product.interface';
 // import Counter from '../counter/counter.model';
 // import { IBulkProductRow } from './product.interface';
 
-export const ALLOWED_CONDITIONS = ['new', 'open_box', 'like_new', 'used', 'damaged', 'for_parts'];
+export const ALLOWED_CONDITIONS = [
+  'new',
+  'open_box',
+  'like_new',
+  'used',
+  'damaged',
+  'for_parts',
+  'brand_new',
+  'like_new_open_box',
+  'scratch_and_dent',
+  'salvage',
+];
 
 const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp']);
 

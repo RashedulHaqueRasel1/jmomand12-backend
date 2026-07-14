@@ -47,10 +47,32 @@ const productSchema = new Schema<IProduct>(
       trim: true,
     },
 
+    categoryImage: {
+      public_id: {
+        type: String,
+        trim: true,
+      },
+      url: {
+        type: String,
+        trim: true,
+      },
+    },
+
     condition: {
       type: String,
       required: true,
-      enum: ['new', 'open_box', 'like_new', 'used', 'damaged', 'for_parts'],
+      enum: [
+        'new',
+        'open_box',
+        'like_new',
+        'used',
+        'damaged',
+        'for_parts',
+        'brand_new',
+        'like_new_open_box',
+        'scratch_and_dent',
+        'salvage',
+      ],
     },
     day: { type: String, trim: true },
     reservePrice: {

@@ -1,10 +1,24 @@
-export type ProductCondition = 'new' | 'open_box' | 'like_new' | 'used' | 'damaged' | 'for_parts';
+export type ProductCondition =
+  | 'new'
+  | 'open_box'
+  | 'like_new'
+  | 'used'
+  | 'damaged'
+  | 'for_parts'
+  | 'brand_new'
+  | 'like_new_open_box'
+  | 'scratch_and_dent'
+  | 'salvage';
 
 export interface IProduct {
   inventoryId: string;
   title: string;
   description: string;
   category: string;
+  categoryImage?: {
+    public_id: string;
+    url: string;
+  };
   condition: ProductCondition;
   reservePrice?: number;
   day?: string;

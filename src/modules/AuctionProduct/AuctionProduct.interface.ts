@@ -30,4 +30,6 @@ export interface IAuctionProduct {
   paymentStatus: 'pending' | 'paid' | 'failed';
   pickupStatus: 'pending' | 'scheduled' | 'completed';
   closedAt?: Date;
+  paymentRetryCount?: number;
+  lastPaymentRetryAt?: Date;
 }

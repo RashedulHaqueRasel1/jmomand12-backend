@@ -16,6 +16,14 @@ const addBid = async (email: string, payload: any) => {
     throw new AppError('User not found', StatusCodes.NOT_FOUND);
   }
 
+  // Check if user has a default payment method before accepting bid
+  if (!user.hasDefaultPaymentMethod || !user.defaultPaymentMethodId) {
+    throw new AppError(
+      'You must have a saved payment method before placing a bid.',
+      StatusCodes.BAD_REQUEST,
+    );
+  }
+
   // Find auction product
   const auctionProduct = await AuctionProduct.findById(auctionProductId);
 

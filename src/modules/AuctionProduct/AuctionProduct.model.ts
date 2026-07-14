@@ -102,6 +102,16 @@ const auctionProductSchema = new Schema<IAuctionProduct>(
       default: 'pending',
     },
 
+    paymentRetryCount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    lastPaymentRetryAt: {
+      type: Date,
+    },
+
     closedAt: {
       type: Date,
     },

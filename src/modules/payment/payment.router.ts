@@ -5,6 +5,9 @@ import paymentController from './payment.controller';
 
 const router = Router();
 
+// Webhook endpoint - must be first and without authentication
+router.post('/webhook', paymentController.handleStripeWebhook);
+
 router.post(
   '/setup-intents',
   auth(USER_ROLE.USER, USER_ROLE.ADMIN),

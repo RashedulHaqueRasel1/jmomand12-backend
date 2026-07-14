@@ -54,8 +54,8 @@ const openApiDocumentBase = {
     { name: 'Categories', description: 'Product category CRUD APIs.' },
     { name: 'Auctions', description: 'Auction scheduling, listing, and detail APIs.' },
     { name: 'Auction Products', description: 'Products associated with a specific auction.' },
-    { name: 'Bids', description: 'Bid placement APIs.' },
-    { name: 'Payments', description: 'Stripe saved-card setup, default payment method, and test-card helper APIs.' },
+    { name: 'Bids', description: 'Bid placement APIs. Users must have a default saved payment method before placing bids.' },
+    { name: 'Payments', description: 'Stripe saved-card setup, default payment method, test-card helper, webhook receiver, and automatic payment retry APIs. Supports 3 retry attempts with exponential backoff for failed payments.' },
     { name: 'Invoices', description: 'Customer invoice, admin invoice, and pickup QR/code verification APIs.' },
     { name: 'Pickups', description: 'Pickup slot, ready invoice, appointment scheduling, and completion APIs.' },
     { name: 'Reports', description: 'Admin revenue, auction, pickup, and inventory analytics APIs.' },
@@ -828,6 +828,8 @@ const openApiDocumentBase = {
         tags: ['Bids'],
         security: bearer,
         summary: 'Place a bid on an auction product',
+        description:
+          'User must have a saved default payment method before placing any bid. If no payment method exists, save one using /payments/setup-intents and /payments/default-payment-method first. Minimum bid is either the starting bid or current highest bid + bid increment.',
         requestBody: {
           required: true,
           content: json({
@@ -835,7 +837,16 @@ const openApiDocumentBase = {
             amount: 205,
           }),
         },
-        responses: { 200: success('Bid placed successfully') },
+        responses: {
+          200: success('Bid placed successfully', {}, { savePaymentMethod: '/api/v1/payments/setup-intents' }),
+          400: {
+            description: 'User has no default payment method or bid validation failed',
+            content: json({
+              success: false,
+              message: 'You must have a saved payment method before placing a bid.',
+            }),
+          },
+        },
       },
     },
     '/payments/setup-intents': {
@@ -904,6 +915,50 @@ const openApiDocumentBase = {
             {},
             { placeBid: '/api/v1/bid' },
           ),
+        },
+      },
+    },
+    '/payments/webhook': {
+      post: {
+        tags: ['Payments'],
+        summary: 'Stripe webhook receiver for payment events',
+        description:
+          'Handles asynchronous Stripe events. Requires Stripe webhook signature verification via X-Stripe-Signature header. Configured events: payment_intent.succeeded, payment_intent.payment_failed, charge.refunded, customer.deleted.',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { type: 'object' },
+              example: {
+                id: 'evt_123',
+                type: 'payment_intent.succeeded',
+                data: {
+                  object: {
+                    id: 'pi_123',
+                    amount: 5000,
+                    currency: 'usd',
+                    status: 'succeeded',
+                  },
+                },
+              },
+            },
+          },
+        },
+        parameters: [
+          {
+            name: 'X-Stripe-Signature',
+            in: 'header',
+            required: true,
+            description: 'Stripe webhook signature for verification',
+            schema: { type: 'string' },
+          },
+        ],
+        responses: {
+          200: success('Webhook received and processed', { received: true, eventType: 'payment_intent.succeeded' }),
+          400: {
+            description: 'Invalid signature or missing webhook secret',
+            content: json({ success: false, message: 'Webhook Error: signature verification failed' }),
+          },
         },
       },
     },

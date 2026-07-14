@@ -348,11 +348,42 @@ const processPayment = async (
 
     auctionProduct.status = 'payment_failed';
     auctionProduct.paymentStatus = 'failed';
+    auctionProduct.paymentRetryCount = 0;
+    auctionProduct.lastPaymentRetryAt = new Date();
     await auctionProduct.save();
 
     await Product.findByIdAndUpdate(product._id, {
       inventoryStatus: 'payment_pending',
     });
+
+    // Create a payment retry record for later processing
+    try {
+      await paymentService.createPaymentRetry({
+        auctionProductId: auctionProduct._id.toString(),
+        auctionId: auctionProduct.auctionId.toString(),
+        winnerId: winner._id.toString(),
+        amount: auctionProduct.highestBid.amount,
+        failureReason,
+        productTitle: product.title,
+      });
+
+      logger.info(
+        {
+          auctionProductId: auctionProduct._id.toString(),
+          winnerId: winner._id.toString(),
+          reason: failureReason,
+        },
+        'Auction product payment failed - retry scheduled',
+      );
+    } catch (retryError) {
+      logger.error(
+        {
+          auctionProductId: auctionProduct._id.toString(),
+          error: buildErrorMessage(retryError),
+        },
+        'Failed to create payment retry record',
+      );
+    }
 
     await invoiceService.createFailedPaymentInvoice({
       auctionId: auctionProduct.auctionId.toString(),
@@ -380,7 +411,125 @@ const processPayment = async (
       auctionProductId: auctionProduct._id.toString(),
       status: auctionProduct.status,
       paymentStatus: auctionProduct.paymentStatus,
-      message: `Payment failed: ${failureReason}`,
+      message: `Payment failed: ${failureReason}. Retry scheduled.`,
+    };
+  }
+};
+
+/**
+ * Process pending payment retries
+ * Called separately by cron to attempt retrying failed payments
+ */
+const processPendingPaymentRetries = async (): Promise<{
+  processedCount: number;
+  successCount: number;
+  failureCount: number;
+  executionTimeMs: number;
+}> => {
+  const startTime = Date.now();
+
+  logger.info('Payment retry processing service started');
+
+  try {
+    const pendingRetries = await paymentService.getPendingPaymentRetries();
+
+    if (pendingRetries.length === 0) {
+      logger.info('No pending payment retries to process');
+      return {
+        processedCount: 0,
+        successCount: 0,
+        failureCount: 0,
+        executionTimeMs: Date.now() - startTime,
+      };
+    }
+
+    let successCount = 0;
+    let failureCount = 0;
+
+    for (const retry of pendingRetries) {
+      try {
+        const result = await paymentService.processPaymentRetry(retry._id.toString());
+
+        if (result.success) {
+          successCount++;
+
+          // Update AuctionProduct on successful retry
+          await AuctionProduct.findByIdAndUpdate(
+            retry.auctionProductId,
+            {
+              status: 'sold',
+              paymentStatus: 'paid',
+              lastPaymentRetryAt: new Date(),
+            },
+          );
+
+          logger.info(
+            {
+              auctionProductId: retry.auctionProductId.toString(),
+              winnerId: retry.winnerId.toString(),
+              paymentIntentId: result.paymentIntentId,
+            },
+            'Payment retry succeeded',
+          );
+        } else {
+          failureCount++;
+          logger.warn(
+            {
+              auctionProductId: retry.auctionProductId.toString(),
+              winnerId: retry.winnerId.toString(),
+              message: result.message,
+            },
+            'Payment retry failed - will be retried later',
+          );
+        }
+      } catch (error) {
+        failureCount++;
+        logger.error(
+          {
+            auctionProductId: retry.auctionProductId.toString(),
+            error: buildErrorMessage(error),
+          },
+          'Error processing payment retry',
+        );
+      }
+    }
+
+    // Cleanup: Mark stale failed retries
+    await paymentService.finalizeFailedPaymentRetries();
+
+    const executionTimeMs = Date.now() - startTime;
+
+    logger.info(
+      {
+        processedCount: pendingRetries.length,
+        successCount,
+        failureCount,
+        executionTimeMs,
+      },
+      'Payment retry processing completed',
+    );
+
+    return {
+      processedCount: pendingRetries.length,
+      successCount,
+      failureCount,
+      executionTimeMs,
+    };
+  } catch (error) {
+    const executionTimeMs = Date.now() - startTime;
+    logger.error(
+      {
+        error: buildErrorMessage(error),
+        executionTimeMs,
+      },
+      'Payment retry processing failed',
+    );
+
+    return {
+      processedCount: 0,
+      successCount: 0,
+      failureCount: 0,
+      executionTimeMs,
     };
   }
 };
@@ -392,6 +541,7 @@ const auctionCronService = {
   processAuctionProduct,
   assignWinner,
   processPayment,
+  processPendingPaymentRetries,
 };
 
 export default auctionCronService;

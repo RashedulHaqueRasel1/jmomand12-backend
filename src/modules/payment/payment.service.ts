@@ -3,6 +3,9 @@ import { StatusCodes } from 'http-status-codes';
 import config from '../../config';
 import AppError from '../../errors/AppError';
 import { User } from '../user/user.model';
+import PaymentRetry from './payment-retry.model';
+import AuctionProduct from '../AuctionProduct/AuctionProduct.model';
+import { Types } from 'mongoose';
 
 const isProbablyPlaceholderKey = (key?: string) => {
   if (!key) return true;
@@ -303,12 +306,187 @@ const chargeSavedPaymentMethod = async (params: {
   }
 };
 
+/**
+ * Create a payment retry record when initial payment fails
+ * Used by auction cron when winner payment fails
+ */
+const createPaymentRetry = async (params: {
+  auctionProductId: string;
+  auctionId: string;
+  winnerId: string;
+  amount: number;
+  failureReason: string;
+  productTitle: string;
+}): Promise<any> => {
+  const retryRecord = await PaymentRetry.create({
+    auctionProductId: new Types.ObjectId(params.auctionProductId),
+    auctionId: new Types.ObjectId(params.auctionId),
+    winnerId: new Types.ObjectId(params.winnerId),
+    amount: params.amount,
+    status: 'pending',
+    retryCount: 0,
+    maxRetries: 3,
+    failureReason: params.failureReason,
+    productTitle: params.productTitle,
+    nextRetryAt: new Date(Date.now() + 60 * 60 * 1000), // Retry after 1 hour
+  });
+
+  return retryRecord;
+};
+
+/**
+ * Process a single payment retry
+ * Returns success or updates retry count and schedules next retry
+ */
+const processPaymentRetry = async (retryId: string): Promise<{
+  success: boolean;
+  message: string;
+  paymentIntentId?: string;
+}> => {
+  const retry = await PaymentRetry.findById(retryId);
+  if (!retry) {
+    throw new AppError('Payment retry record not found', StatusCodes.NOT_FOUND);
+  }
+
+  if (retry.status !== 'pending') {
+    throw new AppError(`Cannot process retry with status: ${retry.status}`, StatusCodes.BAD_REQUEST);
+  }
+
+  const winner = await User.findById(retry.winnerId);
+  if (!winner || !winner.defaultPaymentMethodId || !winner.stripeCustomerId) {
+    throw new AppError('Winner or payment method not found', StatusCodes.NOT_FOUND);
+  }
+
+  try {
+    const paymentIntent = await chargeSavedPaymentMethod({
+      customerId: winner.stripeCustomerId,
+      paymentMethodId: winner.defaultPaymentMethodId,
+      amount: retry.amount,
+      description: `Auction payment retry for ${retry.productTitle}`,
+      metadata: {
+        auctionProductId: retry.auctionProductId.toString(),
+        auctionId: retry.auctionId.toString(),
+        winnerId: retry.winnerId.toString(),
+        retryAttempt: (retry.retryCount + 1).toString(),
+      },
+    });
+
+    // Mark retry as successful
+    retry.status = 'success';
+    retry.lastAttemptAt = new Date();
+    retry.stripePaymentIntentId = paymentIntent.id;
+    await retry.save();
+
+    return {
+      success: true,
+      message: 'Payment retry successful',
+      paymentIntentId: paymentIntent.id,
+    };
+  } catch (error: any) {
+    const failureMessage = error instanceof AppError ? error.message : error?.message || 'Unknown error';
+
+    retry.lastAttemptAt = new Date();
+    retry.retryCount += 1;
+    retry.failureReason = failureMessage;
+
+    if (retry.retryCount >= retry.maxRetries) {
+      retry.status = 'failed';
+    } else {
+      // Schedule next retry: exponential backoff
+      // 1st retry: 1 hour, 2nd retry: 2 hours, 3rd retry: 4 hours
+      const delayMs = Math.pow(2, retry.retryCount) * 60 * 60 * 1000;
+      retry.nextRetryAt = new Date(Date.now() + delayMs);
+    }
+
+    await retry.save();
+
+    return {
+      success: false,
+      message: `Payment retry failed. Attempt ${retry.retryCount}/${retry.maxRetries}. Next retry at: ${retry.nextRetryAt?.toISOString() || 'N/A'}`,
+    };
+  }
+};
+
+/**
+ * Get all pending payment retries due for processing
+ */
+const getPendingPaymentRetries = async (): Promise<any[]> => {
+  const now = new Date();
+  const retries = await PaymentRetry.find({
+    status: 'pending',
+    nextRetryAt: { $lte: now },
+  }).sort({ nextRetryAt: 1 });
+
+  return retries;
+};
+
+/**
+ * Cleanup: Mark stale failed retries and update AuctionProduct status
+ */
+const finalizeFailedPaymentRetries = async (): Promise<number> => {
+  const now = new Date();
+  const failedRetries = await PaymentRetry.find({
+    status: 'failed',
+    updatedAt: { $lt: new Date(now.getTime() - 24 * 60 * 60 * 1000) }, // Older than 24 hours
+  });
+
+  let count = 0;
+  for (const retry of failedRetries) {
+    // Update AuctionProduct to final failure state
+    await AuctionProduct.findByIdAndUpdate(
+      retry.auctionProductId,
+      {
+        status: 'payment_failed',
+        paymentStatus: 'failed',
+      },
+      { new: true },
+    );
+    count++;
+  }
+
+  return count;
+};
+
+/**
+ * Handle successful payment retry - called by processPaymentRetry on success
+ */
+const markPaymentRetrySuccessful = async (retryId: string, paymentIntentId: string): Promise<any> => {
+  const retry = await PaymentRetry.findByIdAndUpdate(
+    retryId,
+    {
+      status: 'success',
+      stripePaymentIntentId: paymentIntentId,
+      lastAttemptAt: new Date(),
+    },
+    { new: true },
+  );
+
+  if (retry) {
+    // Update AuctionProduct to reflect payment success
+    await AuctionProduct.findByIdAndUpdate(
+      retry.auctionProductId,
+      {
+        status: 'sold',
+        paymentStatus: 'paid',
+        lastPaymentRetryAt: new Date(),
+      },
+    );
+  }
+
+  return retry;
+};
+
 const paymentService = {
   createSetupIntent,
   getSetupIntentStatus,
   saveDefaultPaymentMethod,
   createTestDefaultPaymentMethod,
   chargeSavedPaymentMethod,
+  createPaymentRetry,
+  processPaymentRetry,
+  getPendingPaymentRetries,
+  finalizeFailedPaymentRetries,
+  markPaymentRetrySuccessful,
 };
 
 export default paymentService;

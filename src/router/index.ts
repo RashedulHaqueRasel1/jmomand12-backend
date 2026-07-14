@@ -13,6 +13,7 @@ import reportRouter from '../modules/report/report.router';
 import categoryRouter from '../modules/category/category.router';
 import auctionProductRouter from '../modules/AuctionProduct/AuctionProduct.router';
 import bidRouter from '../modules/bid/bid.router';
+import cartRouter from '../modules/cart/cart.router';
 
 const router = Router();
 
@@ -36,6 +37,10 @@ const moduleRoutes = [
   {
     path: '/bid',
     route: bidRouter,
+  },
+  {
+    path: '/carts',
+    route: cartRouter,
   },
 ];
 

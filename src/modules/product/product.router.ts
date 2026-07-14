@@ -8,7 +8,16 @@ const router = Router();
 
 router.post(
   '/',
-  upload.array('images', 5),
+  upload.fields([
+    {
+      name: 'images',
+      maxCount: 5,
+    },
+    {
+      name: 'categoryImage',
+      maxCount: 1,
+    },
+  ]),
   auth(USER_ROLE.ADMIN),
   productController.creteNewProduct,
 );
@@ -27,11 +36,7 @@ router.get(
   auth(USER_ROLE.ADMIN, USER_ROLE.USER),
   productController.getInventoryProducts,
 );
-router.get(
-  '/auctions',
-  auth(USER_ROLE.ADMIN),
-  productController.getAuctionProducts,
-);
+router.get('/auctions', auth(USER_ROLE.ADMIN), productController.getAuctionProducts);
 router.get(
   '/inventory-monitoring',
   auth(USER_ROLE.ADMIN),

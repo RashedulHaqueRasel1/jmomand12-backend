@@ -34,22 +34,13 @@ const PRICE_RANGES: Record<string, { min?: number; max?: number }> = {
 
 const AUCTION_PRODUCT_STATUSES = ['live_auction', 'ending_soon', 'upcoming_auction'] as const;
 
-const generateInventoryId = async () => {
-  const year = new Date().getFullYear();
-
-  const count = await Product.countDocuments({
-    inventoryId: {
-      $regex: `^AUC-${year}-`,
-    },
-  });
-
-  return `AUC-${year}-${String(count + 1).padStart(4, '0')}`;
-};
-
 const createProduct = async (
   payload: Partial<IProduct>,
   email: string,
-  files: Express.Multer.File[],
+  files: {
+    images?: Express.Multer.File[];
+    categoryImage?: Express.Multer.File[];
+  },
 ) => {
   const user = await User.findOne({ email });
 
@@ -57,15 +48,15 @@ const createProduct = async (
     throw new AppError('Your account is not found', StatusCodes.FORBIDDEN);
   }
 
-  if (!files?.length) {
+  // Product Images Validation
+  if (!files.images || files.images.length === 0) {
     throw new AppError('At least one product image is required', StatusCodes.BAD_REQUEST);
   }
 
+  // Product Type Validation
   if (!payload.type) {
     throw new AppError('Product type is required', StatusCodes.BAD_REQUEST);
   }
-
-
 
   // Sale Validation
   if (payload.type === 'for_sale') {
@@ -78,8 +69,9 @@ const createProduct = async (
     }
   }
 
+  // Upload Product Images
   const uploadedImages = await Promise.all(
-    files.map(async (file) => {
+    files.images.map(async (file) => {
       const image = await uploadToCloudinary(file.path, 'products');
 
       return {
@@ -89,11 +81,24 @@ const createProduct = async (
     }),
   );
 
-  // Auto-populate categoryImage from Category
+  // Category Image
   let categoryImage: { public_id: string; url: string } | undefined;
 
-  if (payload.category) {
-    const categoryDoc = await Category.findOne({ name: payload.category });
+  // If category image is uploaded, use it
+  if (files.categoryImage && files.categoryImage.length > 0) {
+    const image = await uploadToCloudinary(files.categoryImage[0].path, 'categories');
+
+    categoryImage = {
+      public_id: image.public_id,
+      url: image.secure_url,
+    };
+  }
+  // Otherwise get image from Category collection
+  else if (payload.category) {
+    const categoryDoc = await Category.findOne({
+      name: payload.category,
+    });
+
     if (categoryDoc?.image) {
       categoryImage = {
         public_id: categoryDoc.image.public_id,
@@ -116,173 +121,6 @@ const createProduct = async (
 
   return result;
 };
-
-// const IMAGE_UPLOAD_CONCURRENCY = 10;
-// const MAX_PRODUCTS_PER_BATCH = 1000;
-
-// const bulkUploadProducts = async (
-//   zipFile: Express.Multer.File,
-//   email: string,
-// ): Promise<IBulkUploadResult> => {
-//   if (!zipFile) {
-//     throw new AppError('A ZIP file is required', StatusCodes.BAD_REQUEST);
-//   }
-
-//   const user = await User.findOne({ email });
-//   if (!user) {
-//     safeCleanup(zipFile.path);
-//     throw new AppError('Your account is not found', StatusCodes.FORBIDDEN);
-//   }
-
-//   const extractDir = path.join(os.tmpdir(), `bulk-upload-${uuid()}`);
-
-//   try {
-//     fs.mkdirSync(extractDir, { recursive: true });
-
-//     // 1. Extract ZIP
-//     try {
-//       new AdmZip(zipFile.path).extractAllTo(extractDir, true);
-//     } catch {
-//       throw new AppError('Uploaded file is not a valid ZIP archive', StatusCodes.BAD_REQUEST);
-//     }
-
-//     // 2. Locate products.csv and images/ directory anywhere in the archive
-//     const csvPath = findFileRecursive(extractDir, 'products.csv');
-//     if (!csvPath) {
-//       throw new AppError('products.csv not found in the ZIP archive', StatusCodes.BAD_REQUEST);
-//     }
-
-//     const imagesRootDir = findDirRecursive(extractDir, 'images');
-//     if (!imagesRootDir) {
-//       throw new AppError('images/ folder not found in the ZIP archive', StatusCodes.BAD_REQUEST);
-//     }
-
-//     // 3. Parse CSV
-//     const rows = parseProductsCsv(csvPath);
-//     if (!rows.length) {
-//       throw new AppError('products.csv contains no data rows', StatusCodes.BAD_REQUEST);
-//     }
-//     if (rows.length > MAX_PRODUCTS_PER_BATCH) {
-//       throw new AppError(
-//         `Cannot upload more than ${MAX_PRODUCTS_PER_BATCH} products at once`,
-//         StatusCodes.BAD_REQUEST,
-//       );
-//     }
-
-//     // 5. Reserve inventory IDs for the whole batch in one atomic DB call
-//     const inventoryIds = await generateInventoryIdsBatch(rows.length);
-
-//     // 6. Process every row independently; a single image upload failure or
-//     // missing folder must not abort the batch
-//     const limit = pLimit(IMAGE_UPLOAD_CONCURRENCY);
-//     const result: IBulkUploadResult = {
-//       totalProcessed: rows.length,
-//       totalSucceeded: 0,
-//       totalFailed: 0,
-//       success: [],
-//       failed: [],
-//     };
-
-//     const documentsToInsert: any[] = [];
-//     const metaByInsertIndex: Array<{ row: number; title: string }> = [];
-
-//     await Promise.all(
-//       rows.map(async (row, idx) => {
-//         try {
-//           const shapeError = validateProductRowShape(row);
-//           if (shapeError) throw new Error(shapeError);
-
-//           const folderPath = path.join(imagesRootDir, row.imageFolder);
-//           if (!fs.existsSync(folderPath) || !fs.statSync(folderPath).isDirectory()) {
-//             throw new Error(`Image folder "${row.imageFolder}" not found`);
-//           }
-
-//           const imageFilePaths = listImageFiles(folderPath);
-//           if (!imageFilePaths.length) {
-//             throw new Error(`No images found in folder "${row.imageFolder}"`);
-//           }
-
-//           // Concurrency-limited globally across the whole batch, not per product,
-//           // so total simultaneous Cloudinary calls never exceed the cap.
-//           const uploadedImages = await Promise.all(
-//             imageFilePaths.map((filePath) =>
-//               limit(async () => {
-//                 const image = await uploadToCloudinary(filePath, 'products');
-//                 return { public_id: image.public_id, url: image.secure_url };
-//               }),
-//             ),
-//           );
-
-//           documentsToInsert.push({
-//             title: row.title,
-//             description: row.description,
-//             categoryId: row.category,
-//             condition: row.condition,
-//             reservePrice: row.reservePrice,
-//             color: row.color,
-//             day: row.day,
-//             inventoryId: inventoryIds[idx],
-//             images: uploadedImages,
-//             inventoryStatus: 'available',
-//             totalReview: 0,
-//             averageReview: 0,
-//           });
-//           metaByInsertIndex.push({ row: row.row, title: row.title });
-//         } catch (err) {
-//           result.failed.push({
-//             row: row.row,
-//             title: row.title,
-//             error: err instanceof Error ? err.message : 'Unknown error',
-//           });
-//         }
-//       }),
-//     );
-
-//     // 7. Bulk insert survivors. ordered:false ensures a single duplicate-key
-//     // or validation error doesn't block the rest of the batch.
-//     if (documentsToInsert.length) {
-//       try {
-//         const inserted = await Product.insertMany(documentsToInsert, { ordered: false });
-//         inserted.forEach((doc: any, i: number) => {
-//           result.success.push({
-//             row: metaByInsertIndex[i].row,
-//             title: metaByInsertIndex[i].title,
-//             inventoryId: doc.inventoryId,
-//             productId: String(doc._id),
-//           });
-//         });
-//       } catch (bulkErr: any) {
-//         (bulkErr.insertedDocs || []).forEach((doc: any) => {
-//           const idx = documentsToInsert.findIndex((d) => d.inventoryId === doc.inventoryId);
-//           result.success.push({
-//             row: metaByInsertIndex[idx]?.row,
-//             title: metaByInsertIndex[idx]?.title,
-//             inventoryId: doc.inventoryId,
-//             productId: String(doc._id),
-//           });
-//         });
-//         (bulkErr.writeErrors || []).forEach((e: any) => {
-//           const meta = metaByInsertIndex[e.index];
-//           result.failed.push({
-//             row: meta?.row ?? -1,
-//             title: meta?.title,
-//             error: e.errmsg || e.err?.errmsg || 'Insert failed',
-//           });
-//         });
-//       }
-//     }
-
-//     result.totalSucceeded = result.success.length;
-//     result.totalFailed = result.failed.length;
-
-//     return result;
-//   } finally {
-//     // Always clean up, success or failure — extracted files and the zip
-//     // itself can be large and must not accumulate on disk.
-//     safeCleanup(extractDir);
-//     safeCleanup(zipFile.path);
-//   }
-// };
 
 const IMAGE_UPLOAD_CONCURRENCY = 10;
 const MAX_PRODUCTS_PER_BATCH = 1000;
@@ -968,7 +806,9 @@ const getInventoryProducts = async (query: Record<string, unknown>) => {
     .sort(sort)
     .skip(skip)
     .limit(limitNumber)
-    .select('inventoryId title description category condition images color type quantity price reservePrice day manufacturer inventoryStatus');
+    .select(
+      'inventoryId title description category condition images color type quantity price reservePrice day manufacturer inventoryStatus',
+    );
 
   const total = await Product.countDocuments(filter);
 
@@ -1123,8 +963,9 @@ const browseProducts = async (query: Record<string, unknown>) => {
   if (status && typeof status === 'string') {
     const statuses = status.split(',').map((s) => s.trim());
     const buyNowSelected = statuses.includes('buy_now');
-    const auctionStatuses = statuses.filter((s): s is 'live_auction' | 'ending_soon' | 'upcoming_auction' =>
-      AUCTION_PRODUCT_STATUSES.includes(s as any),
+    const auctionStatuses = statuses.filter(
+      (s): s is 'live_auction' | 'ending_soon' | 'upcoming_auction' =>
+        AUCTION_PRODUCT_STATUSES.includes(s as any),
     );
 
     // Collect product IDs from auction statuses
@@ -1177,7 +1018,9 @@ const browseProducts = async (query: Record<string, unknown>) => {
     if (filter._id?.$in) {
       // Intersect with existing _id filter
       const existingIds = filter._id.$in;
-      filter._id = { $in: existingIds.filter((id: any) => bidProductIds.some((bidId: any) => bidId.equals(id))) };
+      filter._id = {
+        $in: existingIds.filter((id: any) => bidProductIds.some((bidId: any) => bidId.equals(id))),
+      };
     } else {
       filter._id = { $in: bidProductIds };
     }

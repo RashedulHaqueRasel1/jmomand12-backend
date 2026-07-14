@@ -255,7 +255,6 @@ const getUpcomingAuctions = async (query: Record<string, unknown>) => {
   const [auctions, total] = await Promise.all([
     Auction.find(filter)
       .populate('products')
-      .populate('highestBid.bidder', 'firstName lastName email')
       .populate('winner', 'firstName lastName email')
       .sort({ startsAt: 1 })
       .skip(skip)

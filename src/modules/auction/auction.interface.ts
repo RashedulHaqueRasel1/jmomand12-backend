@@ -30,3 +30,9 @@ export interface IAuction {
   pickupSchedule?: IPickUpSchedule;
   winner?: Types.ObjectId;
 }
+
+export interface IDayAvailability {
+  day: string;
+  date: string;
+  auctionCount: number;
+}

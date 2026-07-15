@@ -4,7 +4,7 @@ import AppError from '../../errors/AppError';
 import Product from '../product/product.model';
 import { User } from '../user/user.model';
 import Auction from './auction.model';
-import { AuctionStatus, IAuction } from './auction.interface';
+import { AuctionStatus, IAuction, IDayAvailability } from './auction.interface';
 import { generateAuctionId } from '../../utils/product.utils';
 import AuctionProduct from '../AuctionProduct/AuctionProduct.model';
 
@@ -357,6 +357,108 @@ const getClosedAuctions = async (query: Record<string, unknown>) => {
 const updateAuction = async (id: string, data: Partial<IAuction>) => {};
 const cancelAuction = async (id: string) => {};
 
+const VALID_DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const;
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+const getNextWeekdayDate = (dayIndex: number): Date => {
+  const today = new Date();
+  const currentDayIndex = today.getDay();
+
+  let daysUntilTarget = dayIndex - currentDayIndex;
+  if (daysUntilTarget < 0) daysUntilTarget += 7;
+
+  const targetDate = new Date(today);
+  targetDate.setDate(today.getDate() + daysUntilTarget);
+  targetDate.setHours(0, 0, 0, 0);
+  return targetDate;
+};
+
+const formatDate = (date: Date): string => date.toISOString().split('T')[0];
+
+const getAuctionsByDay = async (dayName?: string) => {
+  if (dayName) {
+    const normalized = dayName.toLowerCase();
+
+    if (!VALID_DAYS.includes(normalized as (typeof VALID_DAYS)[number])) {
+      throw new AppError(
+        `Invalid day name: ${dayName}. Must be one of: ${VALID_DAYS.join(', ')}`,
+        StatusCodes.BAD_REQUEST,
+      );
+    }
+  }
+
+  const availableDays: IDayAvailability[] = [];
+
+  // JS getDay(): 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
+  // Display order: Mon(1), Tue(2), Wed(3), Thu(4), Fri(5), Sat(6), Sun(0)
+  const dayOrder = [1, 2, 3, 4, 5, 6, 0];
+
+  for (const dayIndex of dayOrder) {
+    const nextDate = getNextWeekdayDate(dayIndex);
+    const nextDateEnd = new Date(nextDate);
+    nextDateEnd.setHours(23, 59, 59, 999);
+
+    const auctionCount = await Auction.countDocuments({
+      status: 'active',
+      startsAt: { $lte: nextDateEnd },
+      endsAt: { $gte: nextDate },
+    });
+
+    if (auctionCount > 0) {
+      availableDays.push({
+        day: DAY_NAMES[dayIndex],
+        date: formatDate(nextDate),
+        auctionCount,
+      });
+    }
+  }
+
+  let selectedDay = null;
+  let auctions = null;
+
+  if (dayName) {
+    const normalized = dayName.toLowerCase();
+    const dayIndex = (VALID_DAYS as readonly string[]).indexOf(normalized);
+    const jsDayIndex = dayIndex === 0 ? 6 : dayIndex - 1; // Convert Mon=0 to JS 1, etc.
+    const actualJsDayIndex = dayOrder[jsDayIndex];
+
+    const nextDate = getNextWeekdayDate(actualJsDayIndex);
+    const nextDateEnd = new Date(nextDate);
+    nextDateEnd.setHours(23, 59, 59, 999);
+
+    const matchingAuctions = await Auction.find({
+      status: 'active',
+      startsAt: { $lte: nextDateEnd },
+      endsAt: { $gte: nextDate },
+    }).populate('products');
+
+    const auctionsWithProducts = await Promise.all(
+      matchingAuctions.map(async (auction) => {
+        const products = await AuctionProduct.find({ auctionId: auction._id })
+          .populate('productId')
+          .populate('highestBid.bidder', 'firstName lastName');
+
+        return {
+          ...auction.toObject(),
+          products,
+        };
+      }),
+    );
+
+    selectedDay = {
+      day: DAY_NAMES[actualJsDayIndex],
+      date: formatDate(nextDate),
+    };
+    auctions = auctionsWithProducts;
+  }
+
+  return {
+    availableDays,
+    selectedDay,
+    auctions,
+  };
+};
+
 const auctionService = {
   createAuction,
   getActiveAuctions,
@@ -365,6 +467,7 @@ const auctionService = {
   getUpcomingAuctions,
   getClosingSoonAuctions,
   getClosedAuctions,
+  getAuctionsByDay,
   updateAuction,
   cancelAuction,
 };

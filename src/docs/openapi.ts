@@ -806,6 +806,42 @@ const openApiDocumentBase = {
         },
       },
     },
+    '/auctions/by-day': {
+      get: {
+        tags: ['Auctions'],
+        summary: 'Get available auction days or auction products for a specific day',
+        description:
+          'Unified endpoint for day-based auction browsing. ' +
+          'Without parameters, returns which weekdays have active auctions with counts (for rendering day buttons). ' +
+          'With the day query parameter, also returns the auction products with bid details for that day.',
+        parameters: [
+          {
+            name: 'day',
+            in: 'query',
+            required: false,
+            schema: {
+              type: 'string',
+              enum: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'],
+            },
+            description: 'Day name to fetch auctions for. Case-insensitive. When provided, the response includes auction products with bid details.',
+          },
+        ],
+        responses: {
+          200: success(
+            'Available days fetched successfully',
+            {
+              availableDays: [
+                { day: 'Monday', date: '2026-07-20', auctionCount: 3 },
+                { day: 'Tuesday', date: '2026-07-21', auctionCount: 1 },
+                { day: 'Thursday', date: '2026-07-23', auctionCount: 5 },
+              ],
+              selectedDay: null,
+              auctions: null,
+            },
+          ),
+        },
+      },
+    },
     '/auctions/{id}': {
       get: {
         tags: ['Auctions'],

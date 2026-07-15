@@ -12,6 +12,7 @@ router.get('/active', auctionController.getActiveAuction);
 router.get('/upcoming', auctionController.getUpcomingAuctions);
 router.get('/closing-soon', auctionController.getClosingSoonAuctions);
 router.get('/closed', auctionController.getClosedAuctions);
+router.get('/by-day', auctionController.getAuctionsByDay);
 router.get('/:id', auctionController.getAuctionDetails);
 
 const auctionRouter = router;

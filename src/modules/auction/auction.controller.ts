@@ -110,6 +110,20 @@ const cancelAuction = catchAsync(async (req, res) => {
   });
 });
 
+const getAuctionsByDay = catchAsync(async (req, res) => {
+  const { day } = req.query;
+  const result = await auctionService.getAuctionsByDay(day as string | undefined);
+
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: day
+      ? `Auctions for ${result.selectedDay?.day} fetched successfully`
+      : 'Available days fetched successfully',
+    data: result,
+  });
+});
+
 const auctionController = {
   createAuction,
   getAllAuctions,
@@ -118,6 +132,7 @@ const auctionController = {
   getUpcomingAuctions,
   getClosingSoonAuctions,
   getClosedAuctions,
+  getAuctionsByDay,
   updateAuction,
   cancelAuction,
 };

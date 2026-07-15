@@ -1,6 +1,7 @@
 import AdmZip from 'adm-zip';
 import fs from 'fs';
 import { StatusCodes } from 'http-status-codes';
+import { Types } from 'mongoose';
 import os from 'os';
 import pLimit from 'p-limit';
 import path from 'path';
@@ -33,6 +34,11 @@ const PRICE_RANGES: Record<string, { min?: number; max?: number }> = {
 };
 
 const AUCTION_PRODUCT_STATUSES = ['live_auction', 'ending_soon', 'upcoming_auction'] as const;
+
+const intersectObjectIdLists = (left: unknown[], right: unknown[]) => {
+  const rightSet = new Set(right.map((item) => String(item)));
+  return left.filter((item) => rightSet.has(String(item)));
+};
 
 const createProduct = async (
   payload: Partial<IProduct>,
@@ -515,8 +521,8 @@ const getAllProducts = async (query: Record<string, unknown>) => {
       if (status === 'live_auction') {
         auctionFilter = { status: 'active' };
       } else if (status === 'ending_soon') {
-        const oneDayFromNow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-        auctionFilter = { status: 'active', endsAt: { $lte: oneDayFromNow } };
+        const twelveHoursFromNow = new Date(now.getTime() + 12 * 60 * 60 * 1000);
+        auctionFilter = { status: 'active', endsAt: { $gt: now, $lte: twelveHoursFromNow } };
       } else if (status === 'upcoming_auction') {
         auctionFilter = { status: 'upcoming' };
       }
@@ -896,6 +902,7 @@ const browseProducts = async (query: Record<string, unknown>) => {
   const {
     searchTerm,
     category,
+    auctionId,
     condition,
     type,
     minPrice,
@@ -911,6 +918,16 @@ const browseProducts = async (query: Record<string, unknown>) => {
   } = query;
 
   const filter: any = {};
+  const mergeProductIds = (productIds: unknown[]) => {
+    if (filter._id?.$in) {
+      filter._id = {
+        $in: intersectObjectIdLists(filter._id.$in, productIds),
+      };
+      return;
+    }
+
+    filter._id = { $in: productIds };
+  };
 
   // Search across title, description, category
   if (searchTerm && typeof searchTerm === 'string') {
@@ -924,6 +941,29 @@ const browseProducts = async (query: Record<string, unknown>) => {
   // Category filter
   if (category && typeof category === 'string') {
     filter.category = category;
+  }
+
+  // Auction scope filter
+  if (auctionId && typeof auctionId === 'string') {
+    const auctionFilter = Types.ObjectId.isValid(auctionId)
+      ? { $or: [{ _id: auctionId }, { auctionId }] }
+      : { auctionId };
+
+    const auction = await Auction.findOne(auctionFilter).select('products');
+
+    if (!auction) {
+      return {
+        meta: {
+          page: Number(page),
+          limit: Number(limit),
+          total: 0,
+          totalPage: 0,
+        },
+        data: [],
+      };
+    }
+
+    mergeProductIds(auction.products);
   }
 
   // Condition filter (multi-select: comma-separated)
@@ -978,8 +1018,8 @@ const browseProducts = async (query: Record<string, unknown>) => {
       if (auctionStatus === 'live_auction') {
         auctionFilter = { status: 'active' };
       } else if (auctionStatus === 'ending_soon') {
-        const oneDayFromNow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-        auctionFilter = { status: 'active', endsAt: { $lte: oneDayFromNow } };
+        const twelveHoursFromNow = new Date(now.getTime() + 12 * 60 * 60 * 1000);
+        auctionFilter = { status: 'active', endsAt: { $gt: now, $lte: twelveHoursFromNow } };
       } else if (auctionStatus === 'upcoming_auction') {
         auctionFilter = { status: 'upcoming' };
       }
@@ -999,7 +1039,7 @@ const browseProducts = async (query: Record<string, unknown>) => {
       filter.type = 'for_sale';
       filter.inventoryStatus = 'available';
     } else if (auctionProductIds.length > 0) {
-      filter._id = { $in: auctionProductIds };
+      mergeProductIds(auctionProductIds);
     }
   }
 
@@ -1016,11 +1056,7 @@ const browseProducts = async (query: Record<string, unknown>) => {
     const bidProductIds = await AuctionProduct.distinct('product', bidFilter);
 
     if (filter._id?.$in) {
-      // Intersect with existing _id filter
-      const existingIds = filter._id.$in;
-      filter._id = {
-        $in: existingIds.filter((id: any) => bidProductIds.some((bidId: any) => bidId.equals(id))),
-      };
+      mergeProductIds(bidProductIds);
     } else {
       filter._id = { $in: bidProductIds };
     }

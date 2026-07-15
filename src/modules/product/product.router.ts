@@ -34,7 +34,7 @@ router.get('/browse', productController.browseProducts);
 router.get('/categories', productController.getAllCategory);
 router.get(
   '/inventory',
-  auth(USER_ROLE.ADMIN, USER_ROLE.USER),
+  // auth(USER_ROLE.ADMIN, USER_ROLE.USER),
   productController.getInventoryProducts,
 );
 router.get('/auctions', auth(USER_ROLE.ADMIN), productController.getAuctionProducts);
